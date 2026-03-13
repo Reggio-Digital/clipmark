@@ -5,6 +5,7 @@ from app.config import (
     FRAMES_CACHE_DIR,
     PREVIEWS_CACHE_DIR,
     THUMBNAILS_CACHE_DIR,
+    SUBTITLES_CACHE_DIR,
     WORK_DIR,
     FRAME_CACHE_TTL_MINUTES,
     PREVIEW_CACHE_TTL_MINUTES,
@@ -100,6 +101,10 @@ def get_preview_cache_path(
 
 def get_thumbnail_cache_path(media_id: str) -> Path:
     return THUMBNAILS_CACHE_DIR / f"{media_id}.jpg"
+
+
+def get_subtitle_cache_path(media_id: str, index: int) -> Path:
+    return SUBTITLES_CACHE_DIR / f"{media_id}_{index}.json"
 
 
 janitor = CacheJanitor()

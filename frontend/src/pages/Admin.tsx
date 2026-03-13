@@ -528,7 +528,7 @@ export default function Admin() {
             </div>
 
             <div className="flex items-center justify-between text-base text-m3-on-surface-variant border-t border-m3-outline-variant pt-3">
-              <span>Disk usage: {formatBytes(cacheStats.disk_usage_bytes)} (thumbnails, frames, previews)</span>
+              <span>Disk usage: {formatBytes(cacheStats.disk_usage_bytes)} (thumbnails, frames, previews, subtitles)</span>
               {cacheStats.disk_usage_bytes > 0 && (
                 <button
                   onClick={handleClearDiskCache}

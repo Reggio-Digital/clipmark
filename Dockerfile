@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend /build/dist ./static
 
-RUN mkdir -p /data/output /data/work /data/cache/frames /data/cache/previews
+RUN mkdir -p /data/output /data/work /data/cache/frames /data/cache/previews /data/cache/thumbnails /data/cache/subtitles
 
 ENV DATA_DIR=/data
 

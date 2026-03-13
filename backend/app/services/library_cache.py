@@ -101,7 +101,7 @@ class LibraryCache:
         # Calculate disk usage across all cache subdirectories
         disk_usage_bytes = sum(
             self._dir_size_bytes(CACHE_DIR / sub)
-            for sub in ("thumbnails", "frames", "previews")
+            for sub in ("thumbnails", "frames", "previews", "subtitles")
         )
         return {
             "populated": self.is_populated,
@@ -123,7 +123,7 @@ class LibraryCache:
     @staticmethod
     def clear_disk_cache() -> None:
         """Clear all cached files on disk (thumbnails, frames, previews)."""
-        for sub in ("thumbnails", "frames", "previews"):
+        for sub in ("thumbnails", "frames", "previews", "subtitles"):
             sub_dir = CACHE_DIR / sub
             if sub_dir.exists():
                 shutil.rmtree(sub_dir)

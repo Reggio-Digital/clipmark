@@ -15,7 +15,7 @@ from app.services.plex import (
 )
 from app.services.subtitles import download_subtitle, parse_subtitle_content, extract_embedded_subtitle
 from app.services.gif import generate_frame, generate_preview
-from app.services.cache import get_frame_cache_path, get_preview_cache_path, get_thumbnail_cache_path
+from app.services.cache import get_frame_cache_path, get_preview_cache_path, get_thumbnail_cache_path, get_subtitle_cache_path
 from app.models.schemas import (
     Library,
     MediaItem,
@@ -31,6 +31,7 @@ from app.config import MAX_PREVIEW_DURATION_SECONDS
 from app.dependencies import get_current_user
 from app.services.library_cache import library_cache
 import httpx
+import json
 
 router = APIRouter(prefix="/api", tags=["media"])
 
@@ -140,6 +141,10 @@ async def get_media(media_id: str, _user=Depends(get_current_user)):
 
 @router.get("/media/{media_id}/subtitles/{index}", response_model=list[SubtitleLine])
 async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_user)):
+    cache_path = get_subtitle_cache_path(media_id, index)
+    if cache_path.exists():
+        return json.loads(cache_path.read_text())
+
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
@@ -151,17 +156,13 @@ async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_use
 
         content = None
 
-        # Try to download external subtitle file first
         sub_url = get_subtitle_stream_url(server, media_id, index)
         if sub_url:
             content = await download_subtitle(sub_url)
 
-        # Fall back to extracting embedded subtitle via FFmpeg
         if not content:
             media_url = get_media_stream_url(server, media_id)
             if media_url:
-                # Find the subtitle stream index relative to subtitle streams only
-                # FFmpeg uses 0-based index for subtitle streams specifically
                 subtitle_stream_index = 0
                 item = server.fetchItem(int(media_id))
                 if hasattr(item, "media") and item.media:
@@ -169,7 +170,7 @@ async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_use
                         for part in m.parts:
                             sub_idx = 0
                             for stream in part.streams:
-                                if stream.streamType == 3:  # Subtitle stream
+                                if stream.streamType == 3:
                                     if stream.index == index:
                                         subtitle_stream_index = sub_idx
                                         break
@@ -183,7 +184,9 @@ async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_use
         if not content:
             return []
 
-        return parse_subtitle_content(content, track.format)
+        result = parse_subtitle_content(content, track.format)
+        cache_path.write_text(json.dumps([line.model_dump() for line in result]))
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
