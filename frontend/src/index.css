@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-m3-background text-m3-on-background;
+}
+
+/* M3 accent color for native form elements */
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #80CBC4;
+}
+
+/* M3 selection colors */
+::selection {
+  background-color: rgba(128, 203, 196, 0.3);
+}
+
+/* M3 scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0E1514;
+}
+::-webkit-scrollbar-thumb {
+  background: #3F4947;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #889391;
+}
+
+/* M3 styled select dropdowns */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23BEC9C6' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 36px !important;
+}
+
+/* M3 Create GIF CTA button */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(128, 203, 196, 0); }
+  50% { box-shadow: 0 0 24px 6px rgba(128, 203, 196, 0.35); }
+}
+
+.btn-create-gif {
+  background: linear-gradient(90deg, #006B63, #005048, #006B63);
+  background-size: 200% 100%;
+  background-position: 0% 50%;
+  box-shadow: 0 0 0 0 rgba(128, 203, 196, 0);
+  transition: background-position 0.5s ease, box-shadow 0.5s ease;
+}
+
+.btn-create-gif:hover:not(:disabled) {
+  animation: gradient-shift 1.5s ease infinite, glow-pulse 2s ease infinite;
+}
+
+.btn-create-gif:not(:hover) {
+  animation: none;
+  background-position: 0% 50%;
+}

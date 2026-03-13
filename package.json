@@ -1,0 +1,8 @@
+{
+  "name": "clipmark",
+  "private": true,
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "install:all": "cd frontend && npm install && cd ../backend && python -m venv venv && ./venv/bin/pip install -r requirements.txt"
+  }
+}

@@ -1,0 +1,72 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        m3: {
+          primary: '#80CBC4',
+          'on-primary': '#003731',
+          'primary-container': '#005048',
+          'on-primary-container': '#9EF2EA',
+          secondary: '#B0CCC8',
+          'on-secondary': '#1B3533',
+          'secondary-container': '#324B48',
+          'on-secondary-container': '#CCE8E4',
+          tertiary: '#F2B888',
+          'on-tertiary': '#4A2800',
+          'tertiary-container': '#6B3E1E',
+          'on-tertiary-container': '#FFDCC2',
+          error: '#F2B8B5',
+          'on-error': '#601410',
+          'error-container': '#8C1D18',
+          'on-error-container': '#F9DEDC',
+          background: '#0E1514',
+          'on-background': '#DEE4E2',
+          surface: '#0E1514',
+          'on-surface': '#DEE4E2',
+          'on-surface-variant': '#BEC9C6',
+          'surface-container-lowest': '#090F0E',
+          'surface-container-low': '#161D1C',
+          'surface-container': '#1A2120',
+          'surface-container-high': '#242B2A',
+          'surface-container-highest': '#2F3635',
+          outline: '#889391',
+          'outline-variant': '#3F4947',
+          'inverse-surface': '#DEE4E2',
+          'inverse-on-surface': '#2B3130',
+          'inverse-primary': '#006B63',
+          scrim: '#000000',
+          success: '#A8D5A2',
+          'success-container': '#1B5E20',
+        },
+      },
+      borderRadius: {
+        'xs': '4px',
+        'sm': '8px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '28px',
+        'full': '9999px',
+      },
+      keyframes: {
+        'slide-up': {
+          '0%': { opacity: '0', transform: 'translateY(1rem)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'slide-up': 'slide-up 0.2s ease-out',
+      },
+      boxShadow: {
+        'elevation-1': '0 1px 3px 1px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.3)',
+        'elevation-2': '0 2px 6px 2px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.3)',
+        'elevation-3': '0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3)',
+      },
+    },
+  },
+  plugins: [],
+}

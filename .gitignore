@@ -1,0 +1,29 @@
+# Python
+backend/venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+
+# Node
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data (runtime generated)
+data/
+*.db
+
+# Build artifacts
+dist/
+build/
