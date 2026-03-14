@@ -30,6 +30,49 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   )
 }
 
+function UserMenu({ user, onLogout }: { user: UserInfo; onLogout: () => void }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative ml-3 pl-3 border-l border-m3-outline-variant">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-m3-surface-container-highest transition-colors"
+      >
+        {user.thumb && (
+          <img src={user.thumb} alt="" className="w-8 h-8 rounded-full" />
+        )}
+        <span className="text-base text-m3-on-surface-variant">{user.username}</span>
+        <svg className={`w-4 h-4 text-m3-on-surface-variant transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 bg-m3-surface-container-high border border-m3-outline-variant rounded-md shadow-elevation-2 z-20 min-w-[140px]">
+            {user.role === 'admin' && (
+              <Link
+                to="/admin"
+                onClick={() => setOpen(false)}
+                className="w-full px-3 py-2 text-base text-left hover:bg-m3-surface-container-highest flex items-center gap-2 text-m3-on-surface transition-colors"
+              >
+                Admin
+              </Link>
+            )}
+            <button
+              onClick={() => { setOpen(false); onLogout() }}
+              className="w-full px-3 py-2 text-base text-left hover:bg-m3-surface-container-highest flex items-center gap-2 text-m3-on-surface transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AuthenticatedApp({ user, onLogout, onUserUpdate }: { user: UserInfo; onLogout: () => void; onUserUpdate: (u: UserInfo) => void }) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -41,21 +84,7 @@ function AuthenticatedApp({ user, onLogout, onUserUpdate }: { user: UserInfo; on
             <NavLink to="/favorites">Favorites</NavLink>
             <NavLink to="/gallery">Gallery</NavLink>
             <NavLink to="/settings">Settings</NavLink>
-            {user.role === 'admin' && (
-              <NavLink to="/admin">Admin</NavLink>
-            )}
-            <div className="flex items-center gap-2 ml-3 pl-3 border-l border-m3-outline-variant">
-              {user.thumb && (
-                <img src={user.thumb} alt="" className="w-8 h-8 rounded-full" />
-              )}
-              <span className="text-base text-m3-on-surface-variant">{user.username}</span>
-              <button
-                onClick={onLogout}
-                className="text-m3-on-surface-variant hover:text-m3-primary text-base px-3 py-1.5 rounded-full hover:bg-m3-surface-container-highest transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
+            <UserMenu user={user} onLogout={onLogout} />
           </div>
         </nav>
       </header>
