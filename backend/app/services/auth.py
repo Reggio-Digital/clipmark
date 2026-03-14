@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.db import User, Session
 
 SESSION_MAX_AGE_DAYS = 30
+SESSION_ROTATION_DAYS = 7
 
 
 async def get_user_by_session_token(db: AsyncSession, token: str) -> User | None:
@@ -28,6 +29,25 @@ async def get_user_by_session_token(db: AsyncSession, token: str) -> User | None
     if user and not user.enabled:
         return None
     return user
+
+
+async def maybe_rotate_session(db: AsyncSession, token: str) -> str | None:
+    """Rotate session token if older than SESSION_ROTATION_DAYS. Returns new token or None."""
+    result = await db.execute(
+        select(Session).where(Session.token == token)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+    age = datetime.utcnow() - session.created_at
+    if age < timedelta(days=SESSION_ROTATION_DAYS):
+        return None
+    new_token = secrets.token_urlsafe(32)
+    session.token = new_token
+    session.created_at = datetime.utcnow()
+    session.expires_at = datetime.utcnow() + timedelta(days=SESSION_MAX_AGE_DAYS)
+    await db.commit()
+    return new_token
 
 
 async def create_session_for_user(db: AsyncSession, user_id: str) -> str:

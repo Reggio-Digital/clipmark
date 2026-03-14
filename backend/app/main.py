@@ -1,23 +1,20 @@
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select
 from app.database import init_db, async_session
-from app.models.db import GifRecord
-from app.models.schemas import PublicGif
 from app.routers import setup, search, media, gifs, auth, admin, favorites
-from app.services.plex import load_config
+from app.routers.shared import router as shared_router
 from app.services.worker import worker
 from app.services.cache import janitor
 from app.services.scheduler import scheduler, register_task
 from app.services.library_cache import library_cache
-from app.services.auth import get_user_by_session_token, cleanup_expired_sessions
+from app.services.auth import get_user_by_session_token, maybe_rotate_session, cleanup_expired_sessions
 from app.config import OUTPUT_DIR, PREVIEWS_CACHE_DIR
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
+
 
 async def _session_cleanup_action() -> None:
     async with async_session() as db:
@@ -77,8 +74,18 @@ async def auth_middleware(request: Request, call_next):
         user = await get_user_by_session_token(db, session_token)
         if not user:
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+        new_token = await maybe_rotate_session(db, session_token)
 
-    return await call_next(request)
+    response = await call_next(request)
+    if new_token:
+        response.set_cookie(
+            key="clipmark_session",
+            value=new_token,
+            httponly=True,
+            samesite="strict",
+            max_age=30 * 24 * 3600,
+        )
+    return response
 
 
 @app.get("/api/health")
@@ -93,56 +100,7 @@ app.include_router(media.router)
 app.include_router(gifs.router)
 app.include_router(admin.router)
 app.include_router(favorites.router)
-
-@app.get("/api/shared/{token}", response_model=PublicGif)
-async def get_shared_gif(token: str):
-    config = load_config()
-    if not config.public_sharing_enabled:
-        raise HTTPException(status_code=404, detail="Not found")
-    async with async_session() as db:
-        result = await db.execute(
-            select(GifRecord).where(
-                GifRecord.public_token == token,
-                GifRecord.status == "complete",
-            )
-        )
-        record = result.scalar_one_or_none()
-    if not record:
-        raise HTTPException(status_code=404, detail="Not found")
-    return PublicGif(
-        media_title=record.media_title,
-        show_title=record.show_title,
-        season=record.season,
-        episode=record.episode,
-        year=record.year,
-        filename=record.filename,
-        size_bytes=record.size_bytes,
-        start_ms=record.start_ms,
-        end_ms=record.end_ms,
-        created_at=record.created_at,
-    )
-
-
-@app.get("/api/shared/{token}/file")
-async def get_shared_gif_file(token: str):
-    config = load_config()
-    if not config.public_sharing_enabled:
-        raise HTTPException(status_code=404, detail="Not found")
-    async with async_session() as db:
-        result = await db.execute(
-            select(GifRecord).where(
-                GifRecord.public_token == token,
-                GifRecord.status == "complete",
-            )
-        )
-        record = result.scalar_one_or_none()
-    if not record or not record.filename:
-        raise HTTPException(status_code=404, detail="Not found")
-    file_path = OUTPUT_DIR / record.filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(file_path, media_type="image/gif")
-
+app.include_router(shared_router)
 
 app.mount("/output/previews", StaticFiles(directory=str(PREVIEWS_CACHE_DIR)), name="previews")
 app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
