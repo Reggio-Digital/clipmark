@@ -3,7 +3,7 @@ import logging
 import shutil
 from datetime import datetime
 
-from app.config import CACHE_DIR, THUMBNAILS_CACHE_DIR
+from app.config import CACHE_DIR, CACHE_SUBDIRS, THUMBNAILS_CACHE_DIR
 from app.models.schemas import Library, MediaItem
 from app.services.plex import get_plex_server, get_libraries, get_library_items
 
@@ -101,7 +101,7 @@ class LibraryCache:
         # Calculate disk usage across all cache subdirectories
         disk_usage_bytes = sum(
             self._dir_size_bytes(CACHE_DIR / sub)
-            for sub in ("thumbnails", "frames", "previews", "subtitles")
+            for sub in CACHE_SUBDIRS
         )
         return {
             "populated": self.is_populated,
@@ -123,7 +123,7 @@ class LibraryCache:
     @staticmethod
     def clear_disk_cache() -> None:
         """Clear all cached files on disk (thumbnails, frames, previews)."""
-        for sub in ("thumbnails", "frames", "previews", "subtitles"):
+        for sub in CACHE_SUBDIRS:
             sub_dir = CACHE_DIR / sub
             if sub_dir.exists():
                 shutil.rmtree(sub_dir)

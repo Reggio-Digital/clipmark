@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from datetime import datetime
 from sqlalchemy import select, update
 from app.database import async_session
 from app.models.db import GifRecord
 from app.services.gif import generate_gif
 from app.config import MAX_CONCURRENT_JOBS
+
+logger = logging.getLogger(__name__)
 
 
 class GifWorker:
@@ -15,7 +18,19 @@ class GifWorker:
 
     async def start(self):
         self.running = True
+        await self._recover_interrupted_jobs()
         asyncio.create_task(self._poll_loop())
+
+    async def _recover_interrupted_jobs(self):
+        async with async_session() as session:
+            result = await session.execute(
+                update(GifRecord)
+                .where(GifRecord.status == "processing")
+                .values(status="queued", progress=0)
+            )
+            if result.rowcount > 0:
+                await session.commit()
+                logger.info("Re-queued %d interrupted jobs from previous run", result.rowcount)
 
     async def stop(self):
         self.running = False
@@ -89,9 +104,20 @@ class GifWorker:
                     job.size_bytes = size_bytes
                     job.progress = 100
                     job.completed_at = datetime.utcnow()
-                except Exception as e:
+                except TimeoutError as e:
                     job.status = "failed"
                     job.error = str(e)
+                    logger.warning("GIF %s timed out: %s", gif_id, e)
+                except Exception as e:
+                    job.status = "failed"
+                    error_msg = str(e)
+                    if "No such file" in error_msg:
+                        job.error = "Media file not accessible. Check Plex server connection."
+                    elif "FFmpeg" in error_msg or "ffmpeg" in error_msg:
+                        job.error = f"FFmpeg error: {error_msg}"
+                    else:
+                        job.error = error_msg
+                    logger.error("GIF %s failed: %s", gif_id, e)
 
                 await session.commit()
 

@@ -7,6 +7,7 @@ DATABASE_FILE = DATA_DIR / "clipmark.db"
 OUTPUT_DIR = DATA_DIR / "output"
 WORK_DIR = DATA_DIR / "work"
 CACHE_DIR = DATA_DIR / "cache"
+CACHE_SUBDIRS = ("frames", "previews", "thumbnails", "subtitles")
 FRAMES_CACHE_DIR = CACHE_DIR / "frames"
 PREVIEWS_CACHE_DIR = CACHE_DIR / "previews"
 THUMBNAILS_CACHE_DIR = CACHE_DIR / "thumbnails"

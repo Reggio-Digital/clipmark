@@ -49,6 +49,7 @@ PUBLIC_PATHS = {
     "/api/auth/setup/select-server",
     "/api/auth/logout",
     "/api/setup/status",
+    "/api/health",
 }
 
 
@@ -78,6 +79,11 @@ async def auth_middleware(request: Request, call_next):
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
 
     return await call_next(request)
+
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 app.include_router(auth.router)
