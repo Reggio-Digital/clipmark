@@ -241,6 +241,22 @@ def get_show_episodes(
     return items, total
 
 
+def extract_external_ids(item) -> dict[str, str | None]:
+    """Extract IMDB, TVDB, TMDB IDs from a Plex media item's guids."""
+    ids: dict[str, str | None] = {"imdb_id": None, "tvdb_id": None, "tmdb_id": None}
+    guids = getattr(item, "guids", None)
+    if guids:
+        for guid in guids:
+            guid_id = getattr(guid, "id", "") or ""
+            if guid_id.startswith("imdb://"):
+                ids["imdb_id"] = guid_id[7:]
+            elif guid_id.startswith("tvdb://"):
+                ids["tvdb_id"] = guid_id[7:]
+            elif guid_id.startswith("tmdb://"):
+                ids["tmdb_id"] = guid_id[7:]
+    return ids
+
+
 def get_media_detail(server: PlexServer, media_id: str) -> MediaDetail:
     item = server.fetchItem(int(media_id))
     subtitle_tracks = []
@@ -268,6 +284,7 @@ def get_media_detail(server: PlexServer, media_id: str) -> MediaDetail:
                                 format=fmt,
                             )
                         )
+    external_ids = extract_external_ids(item)
     if isinstance(item, Movie):
         return MediaDetail(
             id=str(item.ratingKey),
@@ -277,6 +294,7 @@ def get_media_detail(server: PlexServer, media_id: str) -> MediaDetail:
             duration_ms=item.duration or 0,
             year=getattr(item, "year", None),
             subtitle_tracks=subtitle_tracks,
+            **external_ids,
         )
     elif isinstance(item, Episode):
         return MediaDetail(
@@ -290,6 +308,7 @@ def get_media_detail(server: PlexServer, media_id: str) -> MediaDetail:
             episode=item.index,
             year=getattr(item, "year", None),
             subtitle_tracks=subtitle_tracks,
+            **external_ids,
         )
     raise ValueError(f"Item {media_id} is not a movie or episode")
 

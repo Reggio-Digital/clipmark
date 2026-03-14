@@ -42,6 +42,12 @@ async def init_db():
         if "public_token" not in columns:
             await conn.execute(text("ALTER TABLE gifs ADD COLUMN public_token TEXT"))
             await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_gifs_public_token ON gifs(public_token)"))
+        if "imdb_id" not in columns:
+            await conn.execute(text("ALTER TABLE gifs ADD COLUMN imdb_id TEXT"))
+        if "tvdb_id" not in columns:
+            await conn.execute(text("ALTER TABLE gifs ADD COLUMN tvdb_id TEXT"))
+        if "tmdb_id" not in columns:
+            await conn.execute(text("ALTER TABLE gifs ADD COLUMN tmdb_id TEXT"))
 
         # Migration: add season/episode columns to favorites if they don't exist
         result = await conn.execute(text("PRAGMA table_info(favorites)"))

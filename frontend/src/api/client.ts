@@ -134,6 +134,9 @@ export interface MediaDetail {
   season?: number
   episode?: number
   year?: number
+  imdb_id?: string
+  tvdb_id?: string
+  tmdb_id?: string
   subtitle_tracks: SubtitleTrack[]
 }
 
@@ -158,6 +161,9 @@ export interface Gif {
   season?: number
   episode?: number
   year?: number
+  imdb_id?: string
+  tvdb_id?: string
+  tmdb_id?: string
   start_ms: number
   end_ms: number
   width: number
@@ -208,6 +214,9 @@ export interface PublicGif {
   season?: number
   episode?: number
   year?: number
+  imdb_id?: string
+  tvdb_id?: string
+  tmdb_id?: string
   filename: string
   size_bytes?: number
   start_ms: number

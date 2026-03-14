@@ -103,6 +103,9 @@ class MediaDetail(BaseModel):
     season: int | None = None
     episode: int | None = None
     year: int | None = None
+    imdb_id: str | None = None
+    tvdb_id: str | None = None
+    tmdb_id: str | None = None
     subtitle_tracks: list[SubtitleTrack]
 
 
@@ -127,6 +130,9 @@ class Gif(BaseModel):
     season: int | None = None
     episode: int | None = None
     year: int | None = None
+    imdb_id: str | None = None
+    tvdb_id: str | None = None
+    tmdb_id: str | None = None
     start_ms: int
     end_ms: int
     width: int
@@ -160,6 +166,9 @@ class PublicGif(BaseModel):
     season: int | None = None
     episode: int | None = None
     year: int | None = None
+    imdb_id: str | None = None
+    tvdb_id: str | None = None
+    tmdb_id: str | None = None
     filename: str
     size_bytes: int | None = None
     start_ms: int
