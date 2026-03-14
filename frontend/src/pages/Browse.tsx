@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { getLibraries, getLibraryItems, getFeatureFlags, search, getFavoriteIds, addFavorite, removeFavorite, Library, MediaItem, SearchResult, FavoriteCreate } from '../api/client'
+import { getLibraries, getLibraryItems, getFeatureFlags, getSetupStatus, search, getFavoriteIds, addFavorite, removeFavorite, Library, MediaItem, SearchResult, FavoriteCreate } from '../api/client'
 import MediaGrid from '../components/MediaGrid'
 
 export default function Browse() {
@@ -16,10 +16,12 @@ export default function Browse() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
   const [sort, setSort] = useState<'added' | 'alpha' | 'year'>('added')
   const [pageSize, setPageSize] = useState(48)
+  const [serverName, setServerName] = useState<string | null>(null)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     getLibraries().then(setLibraries)
+    getSetupStatus().then((s) => setServerName(s.server_name || null)).catch(() => {})
     getFeatureFlags().then((f) => setPageSize(f.browse_page_size || 48)).catch(() => {})
     getFavoriteIds().then((ids) => setFavoriteIds(new Set(ids))).catch(() => {})
   }, [])
@@ -121,8 +123,8 @@ export default function Browse() {
         </div>
       ) : !libraryId ? (
         <div>
-          <h2 className="text-xl font-medium mb-2 text-m3-on-surface">Libraries</h2>
-          <p className="text-base text-m3-on-surface-variant mb-4">Choose a library to browse your media, then select a movie or episode to create a GIF.</p>
+          <h2 className="text-xl font-medium mb-2 text-m3-on-surface">{serverName ? `${serverName} Libraries` : 'Libraries'}</h2>
+          <p className="text-base text-m3-on-surface-variant mb-4">Choose a library to browse, then select a movie or episode to create a GIF.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {libraries.map((lib) => (
               <button

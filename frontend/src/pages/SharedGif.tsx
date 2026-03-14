@@ -29,11 +29,6 @@ export default function SharedGif() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-
   // M3 subtitle: show/episode info separate from main title
   const getSubtitle = () => {
     if (!gif) return null
@@ -65,11 +60,8 @@ export default function SharedGif() {
 
   if (error || !gif || !token) {
     return (
-      <div className="min-h-screen bg-m3-background text-m3-on-surface">
-        <header className="max-w-2xl mx-auto px-6 h-16 flex items-center">
-          <a href="https://github.com/Reggio-Digital/clipmark" target="_blank" rel="noopener noreferrer" className="text-m3-primary text-base font-medium hover:underline">Clipmark</a>
-        </header>
-        <div className="max-w-2xl mx-auto px-6 pt-12">
+      <div className="min-h-screen bg-m3-background text-m3-on-surface flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-2xl">
           <div className="bg-m3-surface-container rounded-xl p-8">
             <svg className="w-12 h-12 text-m3-on-surface-variant mb-4" fill="none" viewBox="0 0 24 24">
               <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 105.636 5.636a9 9 0 0012.728 12.728zM15 9l-6 6m0-6l6 6" />
@@ -85,62 +77,90 @@ export default function SharedGif() {
   const subtitle = getSubtitle()
 
   return (
-    <div className="min-h-screen bg-m3-background text-m3-on-surface">
-      {/* M3 Small Top App Bar */}
-      <header className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
-        <a href="https://github.com/Reggio-Digital/clipmark" target="_blank" rel="noopener noreferrer" className="text-m3-primary text-base font-medium hover:underline">Clipmark</a>
-      </header>
+    <div className="min-h-screen bg-m3-background text-m3-on-surface flex flex-col items-center justify-center px-6 py-12">
+      {/* Card */}
+      <div className="w-full max-w-2xl bg-m3-surface-container rounded-xl overflow-hidden">
+        {/* Media */}
+        <img
+          src={getSharedGifFileUrl(token)}
+          alt={gif.media_title}
+          className="w-full block"
+        />
 
-      {/* Content */}
-      <div className="max-w-2xl mx-auto px-6 pb-12">
-        {/* M3 Filled Card — Extra Large shape (28px) */}
-        <div className="bg-m3-surface-container rounded-xl overflow-hidden">
-          {/* Media */}
-          <img
-            src={getSharedGifFileUrl(token)}
-            alt={gif.media_title}
-            className="w-full block"
-          />
-
-          {/* Card content */}
-          <div className="px-6 pt-5 pb-6">
-            {/* Title area */}
-            {subtitle && (
-              <p className="text-base font-medium text-m3-on-surface-variant mb-1">{subtitle}</p>
-            )}
-            <h1 className="text-[22px] font-normal leading-7">{getMainTitle()}</h1>
-
-            {/* M3 Assist Chips for metadata */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              <span className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant">
-                {formatTime(gif.start_ms)}&ndash;{formatTime(gif.end_ms)}
-              </span>
-              {gif.size_bytes && (
-                <span className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant">
-                  {formatSize(gif.size_bytes)}
-                </span>
+        {/* Card content */}
+        <div className="px-6 pt-5 pb-6">
+          {/* Title area with metadata on the right */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {subtitle && (
+                <p className="text-base font-medium text-m3-on-surface-variant mb-1">{subtitle}</p>
               )}
-              <span className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant">
-                {formatDate(gif.created_at)}
-              </span>
+              <h1 className="text-[22px] font-normal leading-7">{getMainTitle()}</h1>
             </div>
+            <div className="text-right text-sm text-m3-on-surface-variant shrink-0 pt-1">
+              <p>{formatTime(gif.start_ms)}&ndash;{formatTime(gif.end_ms)}</p>
+              {gif.size_bytes && (
+                <p>{formatSize(gif.size_bytes)}</p>
+              )}
+            </div>
+          </div>
 
-            {/* M3 Filled Tonal Button */}
-            <div className="mt-6">
-              <a
-                href={getSharedGifFileUrl(token)}
-                download
-                className="inline-flex items-center gap-2 h-10 px-6 rounded-full bg-m3-primary-container hover:brightness-110 active:brightness-90 text-m3-on-primary-container text-base font-medium transition-all"
-              >
-                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24">
-                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
-                </svg>
-                Download
-              </a>
+          {/* External links */}
+          {(gif.imdb_id || gif.tmdb_id || gif.tvdb_id) && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {gif.imdb_id && (
+                <a
+                  href={`https://www.imdb.com/title/${gif.imdb_id}/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant hover:bg-m3-surface-container-high transition-colors"
+                >
+                  IMDb
+                </a>
+              )}
+              {gif.tmdb_id && (
+                <a
+                  href={`https://www.themoviedb.org/${gif.show_title ? 'tv' : 'movie'}/${gif.tmdb_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant hover:bg-m3-surface-container-high transition-colors"
+                >
+                  TMDB
+                </a>
+              )}
+              {gif.tvdb_id && (
+                <a
+                  href={`https://thetvdb.com/dereferrer/series/${gif.tvdb_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-8 px-4 rounded-sm border border-m3-outline-variant text-base font-medium text-m3-on-surface-variant hover:bg-m3-surface-container-high transition-colors"
+                >
+                  TVDB
+                </a>
+              )}
             </div>
+          )}
+
+          {/* M3 Filled Tonal Button */}
+          <div className="mt-6">
+            <a
+              href={getSharedGifFileUrl(token)}
+              download
+              className="inline-flex items-center gap-2 h-10 px-6 rounded-full bg-m3-primary-container hover:brightness-110 active:brightness-90 text-m3-on-primary-container text-base font-medium transition-all"
+            >
+              <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24">
+                <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" />
+              </svg>
+              Download
+            </a>
           </div>
         </div>
       </div>
+
+      {/* Footer attribution */}
+      <p className="mt-6 text-sm text-m3-on-surface-variant/50">
+        Created with <a href="https://github.com/Reggio-Digital/clipmark" target="_blank" rel="noopener noreferrer" className="underline hover:text-m3-on-surface-variant/70">Clipmark</a>
+      </p>
     </div>
   )
 }

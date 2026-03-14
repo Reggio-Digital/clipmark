@@ -217,7 +217,7 @@ export default function Gallery() {
           {totalGifs > 0 && (
             <p className="text-base text-m3-outline mb-3">{totalGifs} GIF{totalGifs !== 1 ? 's' : ''}</p>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-2 space-y-0">
             {gifs.map((gif) => (
               <GifCard
                 key={gif.id}
