@@ -67,6 +67,7 @@ Environment variables (all optional):
 |`DATA_DIR` | `/data` | Persistent storage path |
 | `MAX_CONCURRENT_JOBS` | `1` | Parallel FFmpeg jobs |
 | `MAX_QUEUED_JOBS` | `10` | Max pending jobs |
+| `MAX_QUEUED_JOBS_PER_USER` | `3` | Max pending jobs per user |
 | `MAX_GIF_DURATION_SECONDS` | `15` | Max GIF length |
 | `MAX_PREVIEW_DURATION_SECONDS` | `10` | Max preview length |
 | `MAX_WIDTH` | `480` | Max output width (pixels) |
@@ -76,7 +77,22 @@ Environment variables (all optional):
 | `FAILED_WORKSPACE_TTL_HOURS` | `24` | Failed job cleanup delay |
 | `FFMPEG_TIMEOUT_SECONDS` | `300` | FFmpeg process timeout |
 
-Output defaults are 480px width and 15 FPS. Environment variables define upper limits, not per-GIF defaults.
+Output defaults are 480px width and 10 FPS. Environment variables define upper limits, not per-GIF defaults.
+
+### App Settings (config.json)
+
+These are managed via the admin UI and stored in `data/config.json`:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `gifsicle_enabled` | `true` | Enable gifsicle GIF compression |
+| `gifsicle_lossy` | `100` | Lossy compression level (0-200) |
+| `public_sharing_enabled` | `false` | Allow public GIF sharing via link |
+| `giphy_global_enabled` | `true` | Allow users to upload to GIPHY |
+| `max_gif_duration_seconds` | `15` | Default max GIF duration |
+| `max_width` | `480` | Default max output width |
+| `max_fps` | `10` | Default max frame rate |
+| `browse_page_size` | `48` | Items per page when browsing |
 
 ## Data Storage
 
@@ -86,7 +102,11 @@ Mount `/data` as a volume. Contains:
 /data/
 ├── config.json       # Plex token (treat as secret)
 ├── clipmark.db       # SQLite database
-├── cache/            # Temporary frame/preview cache
+├── cache/
+│   ├── frames/       # Extracted video frames
+│   ├── previews/     # GIF previews
+│   ├── thumbnails/   # Media thumbnails
+│   └── subtitles/    # Parsed subtitle data
 ├── work/             # Job workspaces (auto-cleaned)
 └── output/           # Generated GIFs
 ```
@@ -106,7 +126,7 @@ Once configured, a GIPHY upload button appears on completed GIFs in the gallery.
 Clipmark uses gifsicle to reduce GIF file sizes by 20-40%. This is enabled by default and can be configured in **Settings**:
 
 - **Enable/disable** — Toggle optimization on or off
-- **Lossy compression** — Adjust quality vs size (0-200, default 80)
+- **Lossy compression** — Adjust quality vs size (0-200, default 100)
 
 Higher lossy values = more compression = smaller files but more artifacts.
 
@@ -115,14 +135,17 @@ Higher lossy values = more compression = smaller files but more artifacts.
 Clipmark detects subtitles associated with Plex items (sidecar or embedded). If no subtitles appear for your media:
 
 1. **Check Plex first** — Open the media in Plex and verify subtitles are available there
-2. **Add external subtitles** — Place `.srt` files alongside your media files with matching names (e.g., `Movie.mp4` → `Movie.srt` or `Movie.en.srt`), then refresh the library in Plex
-3. **Embedded subtitles** — These are automatically detected if present in the media file
+2. **Search in Plex** — Plex can [search for and download subtitles](https://support.plex.tv/articles/subtitle-search/) directly from the media detail page
+3. **Add external subtitles** — [Place `.srt` files](https://support.plex.tv/articles/200471133-adding-local-subtitles-to-your-media/) alongside your media files with matching names (e.g., `Movie.mp4` → `Movie.srt` or `Movie.en.srt`), then refresh the library in Plex
+4. **Embedded subtitles** — These are automatically detected if present in the media file
 
 **Supported formats for burn-in:**
 - SRT, ASS/SSA, WebVTT — Full support (text-based)
-- PGS, VobSub — Detected but cannot be burned into GIFs (image-based bitmap subtitles)
+- PGS, DVD subtitles — Detected but cannot be burned into GIFs (image-based bitmap subtitles)
 
-If your media only has PGS/VobSub subtitles, convert to SRT (via OCR tools) or use custom text overlay instead.
+If your media only has PGS/DVD bitmap subtitles, convert to SRT (via OCR tools) or use custom text overlay instead.
+
+> **Tip:** [Bazarr](https://www.bazarr.media/) can automatically find and download subtitles across your entire library. It's a great companion if you want subtitles available without manually searching in Plex for each title.
 
 ## Development
 
@@ -136,13 +159,13 @@ cd frontend && npm install
 cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 ```
 
-Then from the project root:
+Then from the `frontend/` directory:
 
 ```bash
 npm run dev
 ```
 
-This starts both the backend (port 8000) and frontend dev server (port 5173) with hot reload.
+This starts both the backend (port 8000) and frontend dev server (port 5173) with hot reload. You can also run `npm run dev` from the project root, which delegates to the frontend script.
 
 ### Build Docker Image
 
