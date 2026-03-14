@@ -15,7 +15,7 @@ from app.services.plex import (
 )
 from app.services.subtitles import download_subtitle, parse_subtitle_content, extract_embedded_subtitle
 from app.services.gif import generate_frame, generate_preview
-from app.services.cache import get_frame_cache_path, get_preview_cache_path, get_thumbnail_cache_path, get_subtitle_cache_path
+from app.services.cache import get_frame_cache_path, get_preview_cache_path, get_thumbnail_cache_path, get_subtitle_cache_path, get_media_detail_cache_path
 from app.models.schemas import (
     Library,
     MediaItem,
@@ -130,11 +130,17 @@ async def list_episodes(
 
 @router.get("/media/{media_id}", response_model=MediaDetail)
 async def get_media(media_id: str, _user=Depends(get_current_user)):
+    cache_path = get_media_detail_cache_path(media_id)
+    if cache_path.exists():
+        return MediaDetail(**json.loads(cache_path.read_text()))
+
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
-        return get_media_detail(server, media_id)
+        result = get_media_detail(server, media_id)
+        cache_path.write_text(result.model_dump_json())
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

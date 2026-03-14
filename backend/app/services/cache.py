@@ -107,4 +107,8 @@ def get_subtitle_cache_path(media_id: str, index: int) -> Path:
     return SUBTITLES_CACHE_DIR / f"{media_id}_{index}.json"
 
 
+def get_media_detail_cache_path(media_id: str) -> Path:
+    return SUBTITLES_CACHE_DIR / f"detail_{media_id}.json"
+
+
 janitor = CacheJanitor()
