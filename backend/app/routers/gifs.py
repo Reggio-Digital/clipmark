@@ -1,11 +1,14 @@
+import asyncio
+import json
 import secrets
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from fastapi.responses import FileResponse
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
+from app.database import get_db, async_session
 from app.models.db import GifRecord
 from app.models.schemas import Gif, GifCreate, PaginatedResponse, GiphyUploadResponse, ShareResponse, PublicGif
 from app.services.plex import get_plex_server, get_media_detail, load_config
@@ -13,6 +16,7 @@ from app.services.giphy import upload_gif_to_giphy, GiphyError
 from app.dependencies import get_current_user
 from app.config import (
     MAX_QUEUED_JOBS,
+    MAX_QUEUED_JOBS_PER_USER,
     OUTPUT_DIR,
 )
 
@@ -79,6 +83,16 @@ async def create_gif(
             status_code=429,
             detail=f"Queue is full. Maximum {MAX_QUEUED_JOBS} pending jobs allowed.",
         )
+    user_queued = await db.scalar(
+        select(func.count())
+        .select_from(GifRecord)
+        .where(GifRecord.user_id == user.id, GifRecord.status.in_(["queued", "processing"]))
+    )
+    if user_queued >= MAX_QUEUED_JOBS_PER_USER:
+        raise HTTPException(
+            status_code=429,
+            detail=f"You have {user_queued} pending jobs. Maximum {MAX_QUEUED_JOBS_PER_USER} per user.",
+        )
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
@@ -142,6 +156,40 @@ async def get_gif(
     if record.user_id != user.id and user.role != "admin":
         raise HTTPException(status_code=404, detail="GIF not found")
     return record_to_gif(record)
+
+
+@router.get("/{gif_id}/progress")
+async def gif_progress_stream(gif_id: str, request: Request, user=Depends(get_current_user)):
+    async with async_session() as db:
+        result = await db.execute(select(GifRecord).where(GifRecord.id == gif_id))
+        record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="GIF not found")
+    if record.user_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=404, detail="GIF not found")
+
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                break
+            async with async_session() as db:
+                result = await db.execute(select(GifRecord).where(GifRecord.id == gif_id))
+                record = result.scalar_one_or_none()
+            if not record:
+                break
+            data = json.dumps({
+                "status": record.status,
+                "progress": record.progress,
+                "error": record.error,
+                "filename": record.filename,
+                "size_bytes": record.size_bytes,
+            })
+            yield {"data": data}
+            if record.status in ("complete", "failed"):
+                break
+            await asyncio.sleep(0.5)
+
+    return EventSourceResponse(event_generator())
 
 
 @router.get("", response_model=PaginatedResponse[Gif])

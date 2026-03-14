@@ -62,21 +62,13 @@ async def list_library_items(
     if cached is not None:
         items, total = cached
         return PaginatedResponse(items=items, page=page, page_size=page_size, total_items=total)
-    # Fallback to live Plex query (fetch all for sorting, then paginate)
+    # Fallback to live Plex query with server-side sort and pagination
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
-    all_items, total = get_library_items(server, library_id, 1, 999999)
-    if sort == "alpha":
-        all_items.sort(key=lambda x: x.title.lower())
-    elif sort == "year":
-        all_items.sort(key=lambda x: x.year or 0, reverse=True)
-    else:  # "added"
-        all_items.sort(key=lambda x: x.added_at or "", reverse=True)
-    start = (page - 1) * page_size
-    end = start + page_size
+    items, total = get_library_items(server, library_id, page, page_size, sort)
     return PaginatedResponse(
-        items=all_items[start:end],
+        items=items,
         page=page,
         page_size=page_size,
         total_items=total,

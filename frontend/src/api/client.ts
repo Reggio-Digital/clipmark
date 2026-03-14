@@ -373,6 +373,25 @@ export const listGifs = (status = 'complete', page = 1, pageSize = 50, search = 
   return fetchJson<PaginatedResponse<Gif>>(`/api/gifs?${params}`)
 }
 export const deleteGif = (gifId: string) => fetchJson<void>(`/api/gifs/${gifId}`, { method: 'DELETE' })
+
+export interface GifProgressEvent {
+  status: string
+  progress: number
+  error: string | null
+  filename: string | null
+  size_bytes: number | null
+}
+
+export function watchGifProgress(gifId: string, onUpdate: (event: GifProgressEvent) => void): () => void {
+  const eventSource = new EventSource(`/api/gifs/${gifId}/progress`)
+  eventSource.onmessage = (e) => {
+    onUpdate(JSON.parse(e.data))
+  }
+  eventSource.onerror = () => {
+    eventSource.close()
+  }
+  return () => eventSource.close()
+}
 export const uploadToGiphy = (gifId: string) => fetchJson<GiphyUploadResponse>(`/api/gifs/${gifId}/upload`, { method: 'POST' })
 
 // Sharing

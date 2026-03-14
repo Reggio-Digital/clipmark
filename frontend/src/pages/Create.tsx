@@ -4,7 +4,7 @@ import {
   getMedia,
   getSubtitles,
   createGif,
-  getGif,
+  watchGifProgress,
   createPreview,
   getGiphyStatus,
   uploadToGiphy,
@@ -83,15 +83,11 @@ export default function Create() {
 
   useEffect(() => {
     if (!currentGif || currentGif.status === 'complete' || currentGif.status === 'failed') return
-    const interval = setInterval(async () => {
-      const gif = await getGif(currentGif.id)
-      setCurrentGif(gif)
-      if (gif.status === 'complete' || gif.status === 'failed') {
-        clearInterval(interval)
-      }
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [currentGif])
+    const cleanup = watchGifProgress(currentGif.id, (event) => {
+      setCurrentGif((prev) => prev ? { ...prev, ...event } : prev)
+    })
+    return cleanup
+  }, [currentGif?.id, currentGif?.status])
 
   useEffect(() => {
     if (!isDragging || !media) return
