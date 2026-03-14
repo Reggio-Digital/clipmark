@@ -157,7 +157,11 @@ def get_library_items(
     plex_sort = PLEX_SORT_MAP.get(sort, "addedAt:desc")
     start = (page - 1) * page_size
     results = section.all(sort=plex_sort, container_start=start, container_size=page_size)
-    total = section.totalViewSize if hasattr(section, 'totalViewSize') else section.totalSize
+    total = getattr(section, 'totalViewSize', None)
+    if total is None:
+        total = section.totalSize
+    if callable(total):
+        total = total()
     items = []
     for item in results:
         if isinstance(item, Movie):
