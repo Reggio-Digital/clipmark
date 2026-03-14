@@ -69,7 +69,20 @@ class TaskScheduler:
     async def start(self) -> None:
         self.running = True
         await self.seed_tasks()
+        await self._reset_stale_running()
         asyncio.create_task(self._poll_loop())
+
+    async def _reset_stale_running(self) -> None:
+        """Reset any tasks stuck in 'running' from a previous crash."""
+        async with async_session() as db:
+            result = await db.execute(
+                update(ScheduledTask)
+                .where(ScheduledTask.status == "running")
+                .values(status="idle")
+            )
+            if result.rowcount:
+                logger.info("Reset %d stale running task(s) to idle", result.rowcount)
+            await db.commit()
 
     async def stop(self) -> None:
         self.running = False
