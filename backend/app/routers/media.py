@@ -3,8 +3,6 @@ from pathlib import Path
 import tempfile
 from app.services.plex import (
     get_plex_server,
-    get_libraries,
-    get_library_items,
     get_show_detail,
     get_show_seasons,
     get_show_episodes,
@@ -38,15 +36,10 @@ router = APIRouter(prefix="/api", tags=["media"])
 
 @router.get("/libraries", response_model=list[Library])
 async def list_libraries(_user=Depends(get_current_user)):
-    # Try cache first
     cached = library_cache.get_libraries()
-    if cached is not None:
-        return cached
-    # Fallback to live Plex query
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
-    return get_libraries(server)
+    if cached is None:
+        raise HTTPException(status_code=503, detail="Library cache is loading, please try again shortly")
+    return cached
 
 
 @router.get("/libraries/{library_id}/items", response_model=PaginatedResponse[MediaItem])
@@ -57,22 +50,11 @@ async def list_library_items(
     sort: str = Query(default="added", pattern="^(added|alpha|year)$"),
     _user=Depends(get_current_user),
 ):
-    # Try cache first
     cached = library_cache.get_library_items(library_id, page, page_size, sort)
-    if cached is not None:
-        items, total = cached
-        return PaginatedResponse(items=items, page=page, page_size=page_size, total_items=total)
-    # Fallback to live Plex query with server-side sort and pagination
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
-    items, total = get_library_items(server, library_id, page, page_size, sort)
-    return PaginatedResponse(
-        items=items,
-        page=page,
-        page_size=page_size,
-        total_items=total,
-    )
+    if cached is None:
+        raise HTTPException(status_code=503, detail="Library cache is loading, please try again shortly")
+    items, total = cached
+    return PaginatedResponse(items=items, page=page, page_size=page_size, total_items=total)
 
 
 @router.get("/shows/{show_id}", response_model=ShowDetail)

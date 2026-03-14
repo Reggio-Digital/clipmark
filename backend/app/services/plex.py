@@ -142,28 +142,16 @@ def get_libraries(server: PlexServer) -> list[Library]:
     return libraries
 
 
-PLEX_SORT_MAP = {
-    "added": "addedAt:desc",
-    "alpha": "titleSort:asc",
-    "year": "year:desc",
-}
-
-
 def get_library_items(
-    server: PlexServer, library_id: str, page: int = 1, page_size: int = 50,
-    sort: str = "added",
+    server: PlexServer, library_id: str, page: int = 1, page_size: int = 50
 ) -> tuple[list[MediaItem], int]:
     section = server.library.sectionByID(int(library_id))
-    plex_sort = PLEX_SORT_MAP.get(sort, "addedAt:desc")
+    all_items = section.all()
+    total = len(all_items)
     start = (page - 1) * page_size
-    results = section.all(sort=plex_sort, container_start=start, container_size=page_size)
-    total = getattr(section, 'totalViewSize', None)
-    if total is None:
-        total = section.totalSize
-    if callable(total):
-        total = total()
+    end = start + page_size
     items = []
-    for item in results:
+    for item in all_items[start:end]:
         if isinstance(item, Movie):
             items.append(
                 MediaItem(

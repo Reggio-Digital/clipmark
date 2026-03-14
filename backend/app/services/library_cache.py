@@ -63,7 +63,7 @@ class LibraryCache:
                 self._refresh_status = f"Scanning {lib.title} ({i}/{len(libraries)})..."
                 try:
                     items, total = await asyncio.to_thread(
-                        get_library_items, server, lib.id, 1, 100000
+                        get_library_items, server, lib.id, 1, 999999
                     )
                     items_cache[lib.id] = (items, total)
                 except Exception:

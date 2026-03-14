@@ -31,9 +31,24 @@ async def lifespan(app: FastAPI):
     await init_db()
     await worker.start()
     await scheduler.start()
+    await _trigger_cache_refresh()
     yield
     await worker.stop()
     await scheduler.stop()
+
+
+async def _trigger_cache_refresh():
+    """Force library cache refresh on startup so the fallback path is never needed."""
+    from datetime import datetime
+    from sqlalchemy import update
+    from app.models.db import ScheduledTask
+    async with async_session() as db:
+        await db.execute(
+            update(ScheduledTask)
+            .where(ScheduledTask.id == "library_cache_refresh")
+            .values(next_run_at=datetime.utcnow())
+        )
+        await db.commit()
 
 
 app = FastAPI(title="Clipmark", lifespan=lifespan)
