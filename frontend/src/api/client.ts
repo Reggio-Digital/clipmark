@@ -377,15 +377,23 @@ export const deleteGif = (gifId: string) => fetchJson<void>(`/api/gifs/${gifId}`
 export interface GifProgressEvent {
   status: string
   progress: number
-  error: string | null
-  filename: string | null
-  size_bytes: number | null
+  error?: string
+  filename?: string
+  size_bytes?: number
 }
 
 export function watchGifProgress(gifId: string, onUpdate: (event: GifProgressEvent) => void): () => void {
   const eventSource = new EventSource(`/api/gifs/${gifId}/progress`)
   eventSource.onmessage = (e) => {
-    onUpdate(JSON.parse(e.data))
+    const raw = JSON.parse(e.data)
+    const event: GifProgressEvent = {
+      status: raw.status,
+      progress: raw.progress,
+      ...(raw.error != null && { error: raw.error }),
+      ...(raw.filename != null && { filename: raw.filename }),
+      ...(raw.size_bytes != null && { size_bytes: raw.size_bytes }),
+    }
+    onUpdate(event)
   }
   eventSource.onerror = () => {
     eventSource.close()
