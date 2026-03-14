@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "vite",
-    "dev:backend": "cd ../backend && DATA_DIR=../data ./venv/bin/uvicorn app.main:app --reload",
+    "dev:backend": "cd ../backend && ./venv/bin/pip install -q -r requirements.txt && DATA_DIR=../data ./venv/bin/uvicorn app.main:app --reload",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -18,7 +18,7 @@
   "devDependencies": {
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^6.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.0",
     "concurrently": "^9.2.1",
     "postcss": "^8.4.0",
