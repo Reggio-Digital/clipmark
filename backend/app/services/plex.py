@@ -197,11 +197,13 @@ def get_show_seasons(server: PlexServer, show_id: str) -> list[Season]:
         raise ValueError(f"Item {show_id} is not a show")
     seasons = []
     for season in sorted(show.seasons(), key=lambda s: s.index):
+        thumb_url = f"/api/media/{season.ratingKey}/thumbnail" if hasattr(season, "ratingKey") else None
         seasons.append(
             Season(
                 index=season.index,
                 title=season.title,
                 episode_count=len(season.episodes()),
+                thumb_url=thumb_url,
             )
         )
     return seasons

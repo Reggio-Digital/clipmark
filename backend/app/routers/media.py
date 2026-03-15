@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, Query, Response, Depends
 from pathlib import Path
 import tempfile
@@ -59,22 +60,32 @@ async def list_library_items(
 
 @router.get("/shows/{show_id}", response_model=ShowDetail)
 async def get_show(show_id: str, _user=Depends(get_current_user)):
+    cached = library_cache.get_show_detail(show_id)
+    if cached:
+        return cached
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
-        return get_show_detail(server, show_id)
+        result = await asyncio.to_thread(get_show_detail, server, show_id)
+        library_cache.set_show_detail(show_id, result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/shows/{show_id}/seasons", response_model=list[Season])
 async def list_seasons(show_id: str, _user=Depends(get_current_user)):
+    cached = library_cache.get_seasons(show_id)
+    if cached is not None:
+        return cached
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
-        return get_show_seasons(server, show_id)
+        result = await asyncio.to_thread(get_show_seasons, server, show_id)
+        library_cache.set_seasons(show_id, result)
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -87,13 +98,22 @@ async def list_episodes(
     page_size: int = Query(default=50, ge=1, le=100),
     _user=Depends(get_current_user),
 ):
+    cached = library_cache.get_episodes(show_id, season)
+    if cached is not None:
+        all_items, total = cached
+        start = (page - 1) * page_size
+        end = start + page_size
+        return PaginatedResponse(items=all_items[start:end], page=page, page_size=page_size, total_items=total)
     server = get_plex_server()
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
-        items, total = get_show_episodes(server, show_id, season, page, page_size)
+        items, total = await asyncio.to_thread(get_show_episodes, server, show_id, season, 1, 999999)
+        library_cache.set_episodes(show_id, season, items, total)
+        start = (page - 1) * page_size
+        end = start + page_size
         return PaginatedResponse(
-            items=items,
+            items=items[start:end],
             page=page,
             page_size=page_size,
             total_items=total,

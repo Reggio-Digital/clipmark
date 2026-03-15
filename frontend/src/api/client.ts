@@ -100,6 +100,7 @@ export interface Season {
   index: number
   title: string
   episode_count: number
+  thumb_url?: string
 }
 
 export interface SearchResult {

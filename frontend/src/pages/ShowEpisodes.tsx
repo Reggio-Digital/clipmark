@@ -19,10 +19,6 @@ export default function ShowEpisodes() {
     Promise.all([getShow(showId), getSeasons(showId)]).then(([showData, seasonsData]) => {
       setShow(showData)
       setSeasons(seasonsData)
-      if (seasonsData.length > 0) {
-        const maxSeason = Math.max(...seasonsData.map((s) => s.index))
-        setSelectedSeason(maxSeason)
-      }
       setLoading(false)
     })
   }, [showId])
@@ -47,6 +43,8 @@ export default function ShowEpisodes() {
 
   const totalPages = Math.ceil(totalEpisodes / 50)
 
+  const selectedSeasonData = seasons.find((s) => s.index === selectedSeason)
+
   return (
     <div>
       <div className="flex gap-6 mb-6">
@@ -60,33 +58,68 @@ export default function ShowEpisodes() {
           <h1 className="text-2xl font-medium text-m3-on-surface">{show.title}</h1>
           {show.year && <p className="text-m3-on-surface-variant">{show.year}</p>}
           <p className="text-m3-on-surface-variant">{show.season_count} Seasons</p>
-          <p className="text-base text-m3-on-surface-variant mt-2">Pick an episode to start creating a GIF from it.</p>
+          <p className="text-base text-m3-on-surface-variant mt-2">
+            {selectedSeason === null
+              ? 'Select a season to browse episodes.'
+              : 'Pick an episode to start creating a GIF from it.'}
+          </p>
         </div>
-      </div>
-
-      <div className="mb-4">
-        <select
-          value={selectedSeason ?? ''}
-          onChange={(e) => {
-            setSelectedSeason(Number(e.target.value))
-            setPage(1)
-          }}
-          className="bg-m3-surface-container-high border border-m3-outline-variant rounded-full px-4 py-2 text-m3-on-surface focus:outline-none focus:border-m3-primary cursor-pointer transition-colors"
-        >
-          {seasons.map((season) => (
-            <option key={season.index} value={season.index}>
-              {season.title} ({season.episode_count} episodes)
-            </option>
-          ))}
-        </select>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-m3-primary"></div>
         </div>
+      ) : selectedSeason === null ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {seasons.map((season) => (
+            <button
+              key={season.index}
+              onClick={() => {
+                setSelectedSeason(season.index)
+                setPage(1)
+              }}
+              className="group text-left rounded-lg overflow-hidden bg-m3-surface-container hover:bg-m3-surface-container-high transition-colors focus:outline-none focus:ring-2 focus:ring-m3-primary"
+            >
+              {season.thumb_url ? (
+                <img
+                  src={season.thumb_url}
+                  alt={season.title}
+                  className="w-full aspect-[2/3] object-cover group-hover:opacity-90 transition-opacity"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full aspect-[2/3] bg-m3-surface-container-highest flex items-center justify-center">
+                  <span className="text-4xl font-bold text-m3-on-surface-variant opacity-40">
+                    {season.index === 0 ? 'S' : season.index}
+                  </span>
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-sm font-medium text-m3-on-surface truncate">{season.title}</p>
+                <p className="text-xs text-m3-on-surface-variant">{season.episode_count} episodes</p>
+              </div>
+            </button>
+          ))}
+        </div>
       ) : (
         <>
+          <div className="mb-4">
+            <button
+              onClick={() => {
+                setSelectedSeason(null)
+                setEpisodes([])
+                setTotalEpisodes(0)
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-m3-on-surface hover:bg-m3-surface-container-high rounded-full transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              {selectedSeasonData?.title ?? `Season ${selectedSeason}`}
+            </button>
+          </div>
+
           <MediaGrid
             items={episodes}
             onItemClick={(ep) => navigate(`/create/${ep.id}`)}

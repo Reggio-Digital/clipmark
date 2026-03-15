@@ -4,8 +4,8 @@ import shutil
 from datetime import datetime
 
 from app.config import CACHE_DIR, CACHE_SUBDIRS, THUMBNAILS_CACHE_DIR
-from app.models.schemas import Library, MediaItem
-from app.services.plex import get_plex_server, get_libraries, get_library_items
+from app.models.schemas import Library, MediaItem, ShowDetail, Season
+from app.services.plex import get_plex_server, get_libraries, get_library_items, get_show_detail, get_show_seasons, get_show_episodes
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,9 @@ class LibraryCache:
     def __init__(self) -> None:
         self._libraries: list[Library] = []
         self._library_items: dict[str, tuple[list[MediaItem], int]] = {}
+        self._show_details: dict[str, ShowDetail] = {}
+        self._seasons: dict[str, list[Season]] = {}
+        self._episodes: dict[str, tuple[list[MediaItem], int]] = {}  # key: "showId:seasonIndex"
         self._last_refreshed: datetime | None = None
         self._lock = asyncio.Lock()
         self._refresh_status: str | None = None
@@ -45,6 +48,28 @@ class LibraryCache:
         end = start + page_size
         return all_items[start:end], total
 
+    def get_show_detail(self, show_id: str) -> ShowDetail | None:
+        """Return cached show detail, or None if not cached."""
+        return self._show_details.get(show_id)
+
+    def set_show_detail(self, show_id: str, detail: ShowDetail) -> None:
+        self._show_details[show_id] = detail
+
+    def get_seasons(self, show_id: str) -> list[Season] | None:
+        """Return cached seasons for a show, or None if not cached."""
+        return self._seasons.get(show_id)
+
+    def set_seasons(self, show_id: str, seasons: list[Season]) -> None:
+        self._seasons[show_id] = seasons
+
+    def get_episodes(self, show_id: str, season_index: int) -> tuple[list[MediaItem], int] | None:
+        """Return cached episodes for a show/season, or None if not cached."""
+        key = f"{show_id}:{season_index}"
+        return self._episodes.get(key)
+
+    def set_episodes(self, show_id: str, season_index: int, items: list[MediaItem], total: int) -> None:
+        self._episodes[f"{show_id}:{season_index}"] = (items, total)
+
     async def refresh(self) -> None:
         """Full refresh of all library data from Plex."""
         server = get_plex_server()
@@ -72,6 +97,9 @@ class LibraryCache:
             # Atomic swap
             self._libraries = libraries
             self._library_items = items_cache
+            self._show_details = {}
+            self._seasons = {}
+            self._episodes = {}
             self._last_refreshed = datetime.utcnow()
             self._refresh_status = None
             logger.info(
@@ -117,6 +145,9 @@ class LibraryCache:
         """Clear the cache (e.g., on server disconnect)."""
         self._libraries = []
         self._library_items = {}
+        self._show_details = {}
+        self._seasons = {}
+        self._episodes = {}
         self._last_refreshed = None
         self.clear_disk_cache()
 

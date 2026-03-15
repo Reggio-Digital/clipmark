@@ -77,6 +77,7 @@ class Season(BaseModel):
     index: int
     title: str
     episode_count: int
+    thumb_url: str | None = None
 
 
 class SubtitleTrack(BaseModel):
