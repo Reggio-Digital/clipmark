@@ -93,8 +93,8 @@ async def get_auth_status(
 
 
 @router.post("/plex/initiate", response_model=AuthInitResponse)
-async def initiate_plex_auth():
-    auth_url, pin_id = initiate_oauth()
+async def initiate_plex_auth(forward_url: str | None = None):
+    auth_url, pin_id = initiate_oauth(forward_url=forward_url)
     return AuthInitResponse(auth_url=auth_url, pin_id=pin_id)
 
 

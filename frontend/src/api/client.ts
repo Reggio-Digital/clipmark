@@ -314,7 +314,7 @@ export interface FavoriteResponse {
 
 // Auth
 export const getAuthStatus = () => fetchJson<AuthStatus>('/api/auth/status')
-export const initiatePlexAuth = () => fetchJson<AuthInitResponse>('/api/auth/plex/initiate', { method: 'POST' })
+export const initiatePlexAuth = () => fetchJson<AuthInitResponse>(`/api/auth/plex/initiate?forward_url=${encodeURIComponent(window.location.origin)}`, { method: 'POST' })
 export const checkPlexAuth = (pinId: string) => fetchJson<AuthCheckResponse>(`/api/auth/plex/check?pin_id=${pinId}`)
 export const plexLogin = (pinId: string) =>
   fetchJson<PlexLoginResponse>('/api/auth/plex/login', {

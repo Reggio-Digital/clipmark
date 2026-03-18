@@ -55,12 +55,12 @@ def get_plex_server() -> PlexServer | None:
     return PlexServer(config.server_url, config.plex_token)
 
 
-def initiate_oauth() -> tuple[str, str]:
+def initiate_oauth(forward_url: str | None = None) -> tuple[str, str]:
     """Start Plex OAuth flow. Returns (auth_url, pin_id)."""
     _cleanup_pending_oauth()
     pin_login = MyPlexPinLogin(oauth=True)
     pin_login.run(timeout=300)
-    auth_url = pin_login.oauthUrl()
+    auth_url = pin_login.oauthUrl(forwardUrl=forward_url)
     pin_id = str(pin_login._id)
     _pending_oauth[pin_id] = (pin_login, time.monotonic())
     return auth_url, pin_id
