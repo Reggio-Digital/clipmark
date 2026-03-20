@@ -13,12 +13,13 @@ import Toast from './components/Toast'
 import Favorites from './pages/Favorites'
 import { getAuthStatus, logout, UserInfo } from './api/client'
 
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+function NavLink({ to, children, onClick }: { to: string; children: React.ReactNode; onClick?: () => void }) {
   const location = useLocation()
   const isActive = location.pathname === to || location.pathname.startsWith(to + '/')
   return (
     <Link
       to={to}
+      onClick={onClick}
       className={`px-4 py-2 rounded-full text-lg font-medium transition-colors ${
         isActive
           ? 'bg-m3-secondary-container text-m3-on-secondary-container'
@@ -27,6 +28,68 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
     >
       {children}
     </Link>
+  )
+}
+
+function MobileMenu({ user, onLogout }: { user: UserInfo; onLogout: () => void }) {
+  const [open, setOpen] = useState(false)
+  const close = () => setOpen(false)
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = '' }
+    }
+  }, [open])
+
+  return (
+    <div className="md:hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-2 rounded-md text-m3-on-surface-variant hover:bg-m3-surface-container-highest transition-colors"
+        aria-label="Toggle menu"
+      >
+        {open ? (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10 bg-black/50" onClick={close} />
+          <div className="fixed top-16 left-0 right-0 z-20 bg-m3-surface-container-high border-t border-m3-outline-variant shadow-elevation-2">
+            <div className="flex flex-col p-3 gap-1">
+              <NavLink to="/browse" onClick={close}>Browse</NavLink>
+              <NavLink to="/favorites" onClick={close}>Favorites</NavLink>
+              <NavLink to="/gallery" onClick={close}>Gallery</NavLink>
+              <NavLink to="/settings" onClick={close}>Settings</NavLink>
+              {user.role === 'admin' && (
+                <NavLink to="/admin" onClick={close}>Admin</NavLink>
+              )}
+              <div className="border-t border-m3-outline-variant mt-2 pt-2 flex items-center justify-between px-4">
+                <div className="flex items-center gap-2">
+                  {user.thumb && (
+                    <img src={user.thumb} alt="" className="w-8 h-8 rounded-full" />
+                  )}
+                  <span className="text-base text-m3-on-surface-variant">{user.username}</span>
+                </div>
+                <button
+                  onClick={() => { close(); onLogout() }}
+                  className="px-3 py-1.5 text-base text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container-highest rounded-full transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -79,13 +142,14 @@ function AuthenticatedApp({ user, onLogout, onUserUpdate }: { user: UserInfo; on
       <header className="bg-m3-surface-container-high shadow-elevation-1">
         <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="text-2xl font-medium text-m3-primary">Clipmark</Link>
-          <div className="flex gap-1 items-center">
+          <div className="hidden md:flex gap-1 items-center">
             <NavLink to="/browse">Browse</NavLink>
             <NavLink to="/favorites">Favorites</NavLink>
             <NavLink to="/gallery">Gallery</NavLink>
             <NavLink to="/settings">Settings</NavLink>
             <UserMenu user={user} onLogout={onLogout} />
           </div>
+          <MobileMenu user={user} onLogout={onLogout} />
         </nav>
       </header>
       <main className="container mx-auto px-4 py-6 flex-1">

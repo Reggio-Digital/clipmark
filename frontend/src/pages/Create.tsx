@@ -267,12 +267,12 @@ export default function Create() {
         <img
           src={media.thumb_url}
           alt={media.title}
-          className="w-24 h-36 object-cover rounded-md"
+          className="w-16 h-24 sm:w-24 sm:h-36 object-cover rounded-md flex-shrink-0"
           loading="lazy"
         />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-medium text-m3-on-surface">{media.title}</h1>
+            <h1 className="text-xl sm:text-2xl font-medium text-m3-on-surface truncate">{media.title}</h1>
             <button
               onClick={handleToggleFavorite}
               className="p-1 rounded-full hover:bg-m3-surface-container-high transition-colors"
@@ -309,7 +309,7 @@ export default function Create() {
                 alt="Generated GIF"
                 className="max-w-full mx-auto rounded-md mb-4"
               />
-              <div className={`grid items-stretch border-t border-m3-outline-variant -mx-6 -mb-6 ${giphyConfigured || currentGif.giphy_url ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              <div className={`grid items-stretch border-t border-m3-outline-variant -mx-6 -mb-6 grid-cols-3 ${giphyConfigured || currentGif.giphy_url ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                 <a
                   href={`/output/${currentGif.filename}`}
                   download
@@ -484,40 +484,40 @@ export default function Create() {
                     {formatTime(startMs + durationMs)}
                   </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  {[-1000, -500, -100].map((delta) => (
-                    <button
-                      key={delta}
-                      onClick={() => {
-                        const newStart = startMs + delta
-                        if (newStart >= 0 && newStart + durationMs <= media.duration_ms) {
-                          setStartMs(newStart)
-                        }
-                      }}
-                      className="px-2 py-1 text-base border border-m3-outline-variant hover:bg-m3-surface-container-high rounded-full font-mono text-m3-on-surface-variant transition-colors"
-                    >
-                      {delta / 1000}s
-                    </button>
-                  ))}
-                  <span className="w-2" />
-                  {[100, 500, 1000].map((delta) => (
-                    <button
-                      key={delta}
-                      onClick={() => {
-                        const newStart = startMs + delta
-                        if (newStart >= 0 && newStart + durationMs <= media.duration_ms) {
-                          setStartMs(newStart)
-                        }
-                      }}
-                      className="px-2 py-1 text-base border border-m3-outline-variant hover:bg-m3-surface-container-high rounded-full font-mono text-m3-on-surface-variant transition-colors"
-                    >
-                      +{delta / 1000}s
-                    </button>
-                  ))}
-                </div>
                 <span className="font-mono text-base text-m3-outline">
                   {formatTime(media.duration_ms)}
                 </span>
+              </div>
+              <div className="flex items-center justify-center gap-1 mt-2 flex-wrap">
+                {[-1000, -500, -100].map((delta) => (
+                  <button
+                    key={delta}
+                    onClick={() => {
+                      const newStart = startMs + delta
+                      if (newStart >= 0 && newStart + durationMs <= media.duration_ms) {
+                        setStartMs(newStart)
+                      }
+                    }}
+                    className="px-2 py-1 text-base border border-m3-outline-variant hover:bg-m3-surface-container-high rounded-full font-mono text-m3-on-surface-variant transition-colors"
+                  >
+                    {delta / 1000}s
+                  </button>
+                ))}
+                <span className="w-2" />
+                {[100, 500, 1000].map((delta) => (
+                  <button
+                    key={delta}
+                    onClick={() => {
+                      const newStart = startMs + delta
+                      if (newStart >= 0 && newStart + durationMs <= media.duration_ms) {
+                        setStartMs(newStart)
+                      }
+                    }}
+                    className="px-2 py-1 text-base border border-m3-outline-variant hover:bg-m3-surface-container-high rounded-full font-mono text-m3-on-surface-variant transition-colors"
+                  >
+                    +{delta / 1000}s
+                  </button>
+                ))}
               </div>
               <p className="text-base text-m3-outline text-center mt-3">Drag the timeline or click a subtitle to select start time</p>
             </div>
@@ -527,26 +527,28 @@ export default function Create() {
           <div className="bg-m3-surface-container rounded-md p-6 mb-6">
             <h2 className="text-lg font-medium mb-1 text-m3-on-surface">Duration</h2>
             <p className="text-base text-m3-on-surface-variant mb-4">Most GIFs work best between 3–8 seconds</p>
-            <div className="flex items-center gap-3">
-              <input
-                type="number"
-                value={(durationMs / 1000).toFixed(1)}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value)
-                  if (!isNaN(val)) {
-                    setDurationMs(val * 1000)
-                  }
-                }}
-                onBlur={() => {
-                  setDurationMs((v) => Math.max(100, Math.min(v, media.duration_ms - startMs, 30000)))
-                }}
-                step="0.1"
-                min="0.1"
-                max="30"
-                className="w-24 bg-m3-surface-container-high border border-m3-outline-variant rounded-sm px-3 py-2 font-mono text-m3-on-surface focus:border-m3-primary focus:outline-none transition-colors"
-              />
-              <span className="text-m3-on-surface-variant">seconds</span>
-              <div className="flex gap-1 ml-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={(durationMs / 1000).toFixed(1)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value)
+                    if (!isNaN(val)) {
+                      setDurationMs(val * 1000)
+                    }
+                  }}
+                  onBlur={() => {
+                    setDurationMs((v) => Math.max(100, Math.min(v, media.duration_ms - startMs, 30000)))
+                  }}
+                  step="0.1"
+                  min="0.1"
+                  max="30"
+                  className="w-24 bg-m3-surface-container-high border border-m3-outline-variant rounded-sm px-3 py-2 font-mono text-m3-on-surface focus:border-m3-primary focus:outline-none transition-colors"
+                />
+                <span className="text-m3-on-surface-variant">seconds</span>
+              </div>
+              <div className="flex gap-1 flex-wrap">
                 {[-1000, -500, 500, 1000].map((delta) => (
                   <button
                     key={delta}
@@ -611,7 +613,7 @@ export default function Create() {
           <div className="bg-m3-surface-container rounded-md p-6 mb-6">
             <h2 className="text-lg font-medium mb-4 text-m3-on-surface">Text Overlay</h2>
             <p className="text-base text-m3-on-surface-variant mb-3">Choose what text to burn into the GIF</p>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 cursor-pointer text-m3-on-surface">
                 <input
                   type="radio"
@@ -660,7 +662,7 @@ export default function Create() {
             )}
 
             {textMode !== 'none' && (
-              <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-base text-m3-on-surface-variant mb-1">Position</label>
                   <div className="flex gap-2">

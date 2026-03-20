@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Gif, uploadToGiphy, shareGif, unshareGif } from '../api/client'
 
@@ -21,6 +21,19 @@ export default function GifCard({ gif, onDelete, onUpdate, giphyConfigured, shar
   const [copied, setCopied] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [localPublicToken, setLocalPublicToken] = useState<string | null>(gif.public_token || null)
+  const [tapped, setTapped] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!tapped) return
+    const handleOutside = (e: Event) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        setTapped(false)
+      }
+    }
+    document.addEventListener('touchstart', handleOutside)
+    return () => document.removeEventListener('touchstart', handleOutside)
+  }, [tapped])
 
   const handleCopyGiphyUrl = async () => {
     if (!gif.giphy_id) return
@@ -108,8 +121,13 @@ export default function GifCard({ gif, onDelete, onUpdate, giphyConfigured, shar
 
   return (
     <div
+      ref={cardRef}
       className={`mb-2 break-inside-avoid rounded-md overflow-hidden relative group ${selected ? 'ring-2 ring-m3-primary' : ''} ${bulkMode ? 'cursor-pointer' : ''}`}
       onClick={bulkMode ? () => onSelect?.(!selected) : undefined}
+      onTouchEnd={!bulkMode && gif.status === 'complete' ? (e) => {
+        if ((e.target as HTMLElement).closest('a, button')) return
+        setTapped((prev) => !prev)
+      } : undefined}
     >
       {bulkMode && (
         <div className="absolute top-2 left-2 z-10">
@@ -143,7 +161,7 @@ export default function GifCard({ gif, onDelete, onUpdate, giphyConfigured, shar
       )}
       {/* Hover overlay with metadata */}
       {gif.status === 'complete' && gif.filename && !bulkMode && (
-        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end">
+        <div className={`absolute inset-0 bg-black/70 transition-opacity flex flex-col justify-end ${tapped ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
           <div className="p-2">
             {sourceLabel ? (
               <p className="font-medium text-sm truncate text-white">{sourceLabel}</p>
@@ -166,7 +184,7 @@ export default function GifCard({ gif, onDelete, onUpdate, giphyConfigured, shar
         </div>
       )}
       {gif.status === 'complete' && gif.filename && !bulkMode && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1.5 z-10">
+        <div className={`absolute top-2 right-2 transition-opacity flex gap-1.5 z-10 ${tapped ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
           <div className="relative group/tip">
             <a
               href={`/output/${gif.filename}`}

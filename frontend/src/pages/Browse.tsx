@@ -153,7 +153,7 @@ export default function Browse() {
             </button>
           </div>
           <p className="text-base text-m3-on-surface-variant mb-4">Click a movie to start creating a GIF, or select a show to browse its episodes.</p>
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
             <input
               type="text"
               value={searchQuery}
@@ -165,7 +165,7 @@ export default function Browse() {
               <select
                 value={sort}
                 onChange={(e) => { setSort(e.target.value as 'added' | 'alpha' | 'year'); setPage(1) }}
-                className="appearance-none bg-m3-surface-container-high border border-m3-outline-variant rounded-full pl-4 pr-10 py-3 text-m3-on-surface focus:outline-none focus:border-m3-primary cursor-pointer transition-colors"
+                className="w-full appearance-none bg-m3-surface-container-high border border-m3-outline-variant rounded-full pl-4 pr-10 py-3 text-m3-on-surface focus:outline-none focus:border-m3-primary cursor-pointer transition-colors"
               >
                 <option value="added">Recently Added</option>
                 <option value="alpha">A-Z</option>

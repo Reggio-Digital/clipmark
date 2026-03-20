@@ -111,7 +111,7 @@ export default function Gallery() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h1 className="text-2xl font-medium text-m3-on-surface">Gallery</h1>
         {!loading && gifs.length > 0 && (
           <div className="flex items-center gap-2">
