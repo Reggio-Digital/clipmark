@@ -1,5 +1,6 @@
 {
   "name": "clipmark",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "cd frontend && npm run dev",

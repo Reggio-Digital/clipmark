@@ -1,5 +1,10 @@
 # Clipmark
 
+[![Docker Build](https://github.com/Reggio-Digital/clipmark/actions/workflows/docker.yml/badge.svg)](https://github.com/Reggio-Digital/clipmark/actions/workflows/docker.yml)
+[![GitHub release](https://img.shields.io/github/v/release/Reggio-Digital/clipmark)](https://github.com/Reggio-Digital/clipmark/releases)
+[![GHCR](https://img.shields.io/badge/GHCR-clipmark-blue?logo=github)](https://ghcr.io/reggio-digital/clipmark)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Create GIF clips from your Plex media library. Self-hosted, single-container. Optional integrations.
 
 ## Features
