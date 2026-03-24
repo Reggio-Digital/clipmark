@@ -15,9 +15,9 @@ Create GIF clips from your Plex media library. Self-hosted, single-container. Op
 
 ![Browse libraries](.github/screenshots/screenshot1.png)
 
-![Create GIF with subtitle burn-in](.github/screenshots/screenshot6.png)
+![Gallery view](.github/screenshots/screenshot2.png)
 
-![Gallery](.github/screenshots/screenshot7.png)
+![Create GIF with subtitle burn-in](.github/screenshots/screenshot3.png)
 
 ## Quick Start
 
@@ -175,18 +175,16 @@ docker build -t clipmark .
 
 ## Tech Stack
 
-- **Frontend**: React, Vite, Tailwind CSS
-- **Backend**: Python, FastAPI, SQLite
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS
+- **Backend**: Python, FastAPI, SQLAlchemy, SQLite
 - **Plex**: python-plexapi
 - **Media**: FFmpeg, gifsicle
 
 ## Security Notes
 
-This application is designed for local network use and should not be exposed to the public internet.
-
 - Plex token stored server-side, never sent to browser
-- If exposing to internet, use a reverse proxy with HTTPS
+- If exposing to the internet, use a reverse proxy with HTTPS
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.

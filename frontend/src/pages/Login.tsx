@@ -22,6 +22,7 @@ export default function Login({ needsSetup, onSuccess }: LoginProps) {
   const [step, setStep] = useState<'idle' | 'waiting' | 'servers'>('idle')
   const [servers, setServers] = useState<Server[]>([])
   const [setupPinId, setSetupPinId] = useState<string | null>(null)
+  const [authWindow, setAuthWindow] = useState<Window | null>(null)
 
   useEffect(() => {
     if (!pinId || step !== 'waiting') return
@@ -33,6 +34,9 @@ export default function Login({ needsSetup, onSuccess }: LoginProps) {
           setAuthUrl(null)
           try {
             const loginResult = await plexLogin(pinId)
+            if (authWindow && !authWindow.closed) {
+              authWindow.close()
+            }
             if (loginResult.needs_server_selection && loginResult.servers) {
               setServers(loginResult.servers)
               setSetupPinId(loginResult.pin_id || pinId)
@@ -52,6 +56,7 @@ export default function Login({ needsSetup, onSuccess }: LoginProps) {
     }, 2000)
     const timeout = setTimeout(() => {
       clearInterval(interval)
+      if (authWindow && !authWindow.closed) authWindow.close()
       setError('Authentication timed out. Please try again.')
       setAuthUrl(null)
       setPinId(null)
@@ -71,7 +76,8 @@ export default function Login({ needsSetup, onSuccess }: LoginProps) {
       setAuthUrl(result.auth_url)
       setPinId(result.pin_id)
       setStep('waiting')
-      window.open(result.auth_url, '_blank')
+      const popup = window.open(result.auth_url, '_blank')
+      setAuthWindow(popup)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to start Plex authentication')
     } finally {
@@ -164,6 +170,7 @@ export default function Login({ needsSetup, onSuccess }: LoginProps) {
             </p>
             <button
               onClick={() => {
+                if (authWindow && !authWindow.closed) authWindow.close()
                 setStep('idle')
                 setAuthUrl(null)
                 setPinId(null)

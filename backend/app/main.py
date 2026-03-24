@@ -12,6 +12,7 @@ from app.services.cache import janitor
 from app.services.scheduler import scheduler, register_task
 from app.services.library_cache import library_cache
 from app.services.auth import get_user_by_session_token, maybe_rotate_session, cleanup_expired_sessions
+from app.routers.auth import _is_https
 from app.models.db import GifRecord
 from app.config import OUTPUT_DIR, PREVIEWS_CACHE_DIR
 
@@ -93,12 +94,14 @@ async def auth_middleware(request: Request, call_next):
             return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
         new_token = await maybe_rotate_session(db, session_token)
 
+    secure = _is_https(request)
     response = await call_next(request)
     if new_token:
         response.set_cookie(
             key="clipmark_session",
             value=new_token,
             httponly=True,
+            secure=secure,
             samesite="strict",
             max_age=30 * 24 * 3600,
         )

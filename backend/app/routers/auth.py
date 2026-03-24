@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from fastapi import APIRouter, HTTPException, Cookie, Response, Depends
+from fastapi import APIRouter, HTTPException, Cookie, Request, Response, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.schemas import (
@@ -107,11 +107,19 @@ async def check_plex_auth(pin_id: str):
     return AuthCheckResponse(complete=False)
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _is_https(request: Request) -> bool:
+    return (
+        request.headers.get("x-forwarded-proto") == "https"
+        or request.url.scheme == "https"
+    )
+
+
+def _set_session_cookie(response: Response, token: str, *, secure: bool = False) -> None:
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
+        secure=secure,
         samesite="strict",
         max_age=60 * 60 * 24 * 30,  # 30 days
     )
@@ -120,6 +128,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
 @router.post("/plex/login")
 async def plex_login(
     request: PlexLoginRequest,
+    raw_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
@@ -182,7 +191,7 @@ async def plex_login(
         )
 
     token = await create_session_for_user(db, user.id)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, secure=_is_https(raw_request))
 
     return {
         "success": True,
@@ -196,6 +205,7 @@ async def plex_login(
 async def setup_select_server(
     request: ServerSelectRequest,
     pin_id: str,
+    raw_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
@@ -237,7 +247,7 @@ async def setup_select_server(
         )
 
     token = await create_session_for_user(db, user.id)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, secure=_is_https(raw_request))
 
     return {
         "success": True,
@@ -248,11 +258,17 @@ async def setup_select_server(
 
 @router.post("/logout")
 async def logout(
+    raw_request: Request,
     response: Response,
     clipmark_session: str | None = Cookie(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     if clipmark_session:
         await delete_session(db, clipmark_session)
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=_is_https(raw_request),
+        samesite="strict",
+    )
     return {"success": True}
