@@ -197,6 +197,17 @@ export interface FeatureFlags {
   giphy_global_enabled: boolean
 }
 
+export interface HealthStatus {
+  status: string
+  version: string
+  version_published_at?: string | null
+  database: string
+  plex: string
+  latest_version?: string | null
+  latest_version_published_at?: string | null
+  update_available: boolean
+}
+
 export interface AdminSettings {
   public_sharing_enabled: boolean
   giphy_global_enabled: boolean
@@ -328,6 +339,9 @@ export const setupSelectServer = (pinId: string, serverId: string, connectionUri
     }
   )
 export const logout = () => fetchJson<{ success: boolean }>('/api/auth/logout', { method: 'POST' })
+
+// Health
+export const getHealth = () => fetchJson<HealthStatus>('/api/health')
 
 // Setup
 export const getSetupStatus = () => fetchJson<SetupStatus>('/api/setup/status')
@@ -475,6 +489,8 @@ export interface GifStats {
   failed_gifs: number
 }
 export const getGifStats = () => fetchJson<GifStats>('/api/admin/stats')
+export const deleteAllGifs = () =>
+  fetchJson<{ deleted_records: number; deleted_files: number }>('/api/admin/gifs', { method: 'DELETE' })
 export const getAdminTasks = () => fetchJson<ScheduledTaskInfo[]>('/api/admin/tasks')
 export const updateAdminTask = (taskId: string, update: ScheduledTaskUpdate) =>
   fetchJson<ScheduledTaskInfo>(`/api/admin/tasks/${taskId}`, {

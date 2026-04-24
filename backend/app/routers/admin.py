@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.db import GifRecord
+from app.config import OUTPUT_DIR
 from app.services.auth import (
     get_all_users,
     get_user_by_id,
@@ -249,6 +250,31 @@ async def get_gif_stats(
         "total_gifs": total_gifs,
         "total_size_bytes": total_size,
         "failed_gifs": failed_gifs,
+    }
+
+
+@router.delete("/gifs")
+async def delete_all_gifs(
+    admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete every GIF record and its output file."""
+    result = await db.execute(select(GifRecord.filename).where(GifRecord.filename.is_not(None)))
+    filenames = [row for row in result.scalars().all() if row]
+    deleted_files = 0
+    for filename in filenames:
+        output_path = OUTPUT_DIR / filename
+        if output_path.exists():
+            try:
+                output_path.unlink()
+                deleted_files += 1
+            except OSError:
+                pass
+    delete_result = await db.execute(delete(GifRecord))
+    await db.commit()
+    return {
+        "deleted_records": delete_result.rowcount or 0,
+        "deleted_files": deleted_files,
     }
 
 

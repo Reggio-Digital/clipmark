@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+VERSION = "1.0.0"
+
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 CONFIG_FILE = DATA_DIR / "config.json"
 DATABASE_FILE = DATA_DIR / "clipmark.db"

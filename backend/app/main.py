@@ -1,9 +1,12 @@
+import asyncio
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from app.database import init_db, async_session
 from app.routers import setup, search, media, gifs, auth, admin, favorites
 from app.routers.shared import router as shared_router
@@ -12,9 +15,10 @@ from app.services.cache import janitor
 from app.services.scheduler import scheduler, register_task
 from app.services.library_cache import library_cache
 from app.services.auth import get_user_by_session_token, maybe_rotate_session, cleanup_expired_sessions
+from app.services.plex import get_plex_server, load_config
 from app.routers.auth import _is_https
 from app.models.db import GifRecord
-from app.config import OUTPUT_DIR, PREVIEWS_CACHE_DIR
+from app.config import OUTPUT_DIR, PREVIEWS_CACHE_DIR, VERSION
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -108,9 +112,121 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
+_plex_status_cache: dict = {"status": None, "expires_at": 0.0}
+_PLEX_STATUS_TTL_SECONDS = 30
+
+_update_check_cache: dict = {
+    "latest": None,
+    "latest_published_at": None,
+    "current_published_at": None,
+    "expires_at": 0.0,
+}
+_UPDATE_CHECK_TTL_SECONDS = 6 * 3600
+_GITHUB_REPO = "Reggio-Digital/clipmark"
+_GITHUB_LATEST_RELEASE_URL = f"https://api.github.com/repos/{_GITHUB_REPO}/releases/latest"
+_GITHUB_TAG_RELEASE_URL = f"https://api.github.com/repos/{_GITHUB_REPO}/releases/tags/v{{tag}}"
+
+
+def _parse_version(value: str) -> tuple[int, ...] | None:
+    try:
+        cleaned = value.strip().lstrip("vV").split("-")[0].split("+")[0]
+        return tuple(int(p) for p in cleaned.split("."))
+    except (ValueError, AttributeError):
+        return None
+
+
+async def _check_release_info() -> tuple[str | None, str | None, str | None]:
+    """Return (latest_version, latest_published_at, current_published_at) from GitHub, cached."""
+    now = time.monotonic()
+    if now < _update_check_cache["expires_at"]:
+        return (
+            _update_check_cache["latest"],
+            _update_check_cache["latest_published_at"],
+            _update_check_cache["current_published_at"],
+        )
+    latest: str | None = None
+    latest_published_at: str | None = None
+    current_published_at: str | None = None
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "clipmark"}
+    try:
+        async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
+            latest_resp, current_resp = await asyncio.gather(
+                client.get(_GITHUB_LATEST_RELEASE_URL),
+                client.get(_GITHUB_TAG_RELEASE_URL.format(tag=VERSION)),
+                return_exceptions=True,
+            )
+            if isinstance(latest_resp, httpx.Response) and latest_resp.status_code == 200:
+                data = latest_resp.json()
+                tag = data.get("tag_name")
+                if tag:
+                    latest = tag.lstrip("vV")
+                latest_published_at = data.get("published_at")
+            if isinstance(current_resp, httpx.Response) and current_resp.status_code == 200:
+                current_published_at = current_resp.json().get("published_at")
+    except Exception:
+        pass
+    if latest and latest == VERSION and latest_published_at and not current_published_at:
+        current_published_at = latest_published_at
+    _update_check_cache["latest"] = latest
+    _update_check_cache["latest_published_at"] = latest_published_at
+    _update_check_cache["current_published_at"] = current_published_at
+    _update_check_cache["expires_at"] = now + _UPDATE_CHECK_TTL_SECONDS
+    return latest, latest_published_at, current_published_at
+
+
+async def _check_plex_status() -> str:
+    now = time.monotonic()
+    if _plex_status_cache["status"] and now < _plex_status_cache["expires_at"]:
+        return _plex_status_cache["status"]
+
+    config = load_config()
+    if not config.plex_token or not config.server_url:
+        status = "disconnected"
+    else:
+        try:
+            def _probe() -> str:
+                server = get_plex_server()
+                if server is None:
+                    return "disconnected"
+                _ = server.machineIdentifier
+                return "connected"
+            status = await asyncio.wait_for(asyncio.to_thread(_probe), timeout=3.0)
+        except Exception:
+            status = "error"
+
+    _plex_status_cache["status"] = status
+    _plex_status_cache["expires_at"] = now + _PLEX_STATUS_TTL_SECONDS
+    return status
+
+
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    try:
+        async with async_session() as db:
+            await db.execute(text("SELECT 1"))
+        database_status = "ok"
+    except Exception:
+        database_status = "error"
+
+    plex_status = await _check_plex_status()
+    latest_version, latest_version_published_at, version_published_at = await _check_release_info()
+    update_available = False
+    if latest_version:
+        current = _parse_version(VERSION)
+        latest = _parse_version(latest_version)
+        if current and latest:
+            update_available = latest > current
+
+    return {
+        "status": "ok",
+        "version": VERSION,
+        "version_published_at": version_published_at,
+        "database": database_status,
+        "plex": plex_status,
+        "latest_version": latest_version,
+        "latest_version_published_at": latest_version_published_at,
+        "update_available": update_available,
+    }
 
 
 app.include_router(auth.router)

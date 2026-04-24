@@ -12,11 +12,14 @@ import {
   getLibraryCacheStats,
   clearDiskCache,
   getGifStats,
+  deleteAllGifs,
+  getHealth,
   AdminUserInfo,
   AdminSettings,
   ScheduledTaskInfo,
   LibraryCacheStats,
   GifStats,
+  HealthStatus,
   UserInfo,
 } from '../api/client'
 import { showToast } from '../components/Toast'
@@ -35,19 +38,23 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
   const [editingTask, setEditingTask] = useState<string | null>(null)
   const [editInterval, setEditInterval] = useState<number>(0)
   const [gifStats, setGifStats] = useState<GifStats | null>(null)
+  const [health, setHealth] = useState<HealthStatus | null>(null)
   const [changeServerOpen, setChangeServerOpen] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [usersData, serverData, settingsData, tasksData, cacheData, gifData] = await Promise.all([
+      const [usersData, serverData, settingsData, tasksData, cacheData, gifData, healthData] = await Promise.all([
         getAdminUsers(),
         getAdminServerInfo(),
         getAdminSettings(),
         getAdminTasks(),
         getLibraryCacheStats(),
         getGifStats(),
+        getHealth(),
       ])
       setUsers(usersData)
       setServerInfo(serverData)
@@ -55,6 +62,7 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
       setTasks(tasksData)
       setCacheStats(cacheData)
       setGifStats(gifData)
+      setHealth(healthData)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to load admin data')
     } finally {
@@ -233,6 +241,20 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
     }
   }
 
+  const handleDeleteAllGifs = async () => {
+    setDeletingAll(true)
+    try {
+      const result = await deleteAllGifs()
+      showToast(`Deleted ${result.deleted_records} GIF${result.deleted_records === 1 ? '' : 's'}`, 'success')
+      setConfirmDeleteAllOpen(false)
+      await loadData()
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to delete GIFs')
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   const cacheTask = tasks.find(t => t.id === 'library_cache_refresh')
   const maintenanceTasks = tasks.filter(t => t.id !== 'library_cache_refresh')
 
@@ -244,17 +266,84 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
     )
   }
 
+  const healthDotColor = (value: string) => {
+    if (value === 'ok' || value === 'connected') return 'bg-m3-success'
+    if (value === 'disconnected') return 'bg-m3-outline'
+    return 'bg-m3-error'
+  }
+
+  const formatRelativeDate = (iso: string): string => {
+    const then = new Date(iso).getTime()
+    if (Number.isNaN(then)) return ''
+    const diffMs = Date.now() - then
+    const days = Math.floor(diffMs / 86_400_000)
+    if (days < 1) return 'today'
+    if (days === 1) return 'yesterday'
+    if (days < 30) return `${days} days ago`
+    const months = Math.floor(days / 30)
+    if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`
+    const years = Math.floor(days / 365)
+    return `${years} year${years === 1 ? '' : 's'} ago`
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-medium mb-6 text-m3-on-surface">Admin</h1>
 
-      {/* Server Info */}
-      <h2 className="text-xl font-medium mb-4 text-m3-on-surface">Server</h2>
-      <div className="bg-m3-surface-container rounded-md p-6 mb-8">
-        <div className="flex items-center justify-between gap-3">
+      {/* System */}
+      <h2 className="text-xl font-medium mb-4 text-m3-on-surface">System</h2>
+      <div className="bg-m3-surface-container rounded-md p-6 mb-8 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-m3-on-surface-variant">Version</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p
+                className="text-m3-on-surface font-medium"
+                title={
+                  health?.version_published_at
+                    ? `Released ${new Date(health.version_published_at).toLocaleDateString()}`
+                    : undefined
+                }
+              >
+                {health ? `v${health.version}` : '—'}
+                {health?.version_published_at && (
+                  <span className="ml-1 text-xs font-normal text-m3-on-surface-variant">
+                    · released {formatRelativeDate(health.version_published_at)}
+                  </span>
+                )}
+              </p>
+              {health?.update_available && health.latest_version && (
+                <a
+                  href="https://github.com/Reggio-Digital/clipmark/releases/latest"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full bg-m3-primary-container text-m3-on-primary-container px-2 py-0.5 text-xs font-medium hover:brightness-110 transition-all"
+                  title={
+                    health.latest_version_published_at
+                      ? `Released ${new Date(health.latest_version_published_at).toLocaleDateString()}`
+                      : `Update to v${health.latest_version}`
+                  }
+                >
+                  v{health.latest_version} available
+                  {health.latest_version_published_at && (
+                    <span className="ml-1 opacity-80">· {formatRelativeDate(health.latest_version_published_at)}</span>
+                  )}
+                </a>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-m3-on-surface-variant">Database</p>
+            <div className="flex items-center gap-2">
+              {health && <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${healthDotColor(health.database)}`}></div>}
+              <p className="text-m3-on-surface font-medium capitalize">{health ? health.database : '—'}</p>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-m3-outline-variant pt-4 flex items-center justify-between gap-3">
           {serverInfo?.configured ? (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-3 h-3 bg-m3-success rounded-full shrink-0"></div>
+              <div className={`w-3 h-3 rounded-full shrink-0 ${health ? healthDotColor(health.plex) : 'bg-m3-success'}`}></div>
               <span className="text-m3-on-surface truncate">Connected to <strong>{serverInfo.server_name}</strong></span>
             </div>
           ) : (
@@ -553,19 +642,6 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
               <span>Next: {formatDate(cacheTask.next_run_at)}</span>
             </div>
 
-            <div className="flex items-center justify-between text-base text-m3-on-surface-variant border-t border-m3-outline-variant pt-3">
-              <span>Disk usage: {formatBytes(cacheStats.disk_usage_bytes)} (thumbnails, frames, previews, subtitles)</span>
-              {cacheStats.disk_usage_bytes > 0 && (
-                <button
-                  onClick={handleClearDiskCache}
-                  disabled={clearingCache}
-                  className="text-base px-3 py-1 bg-m3-surface-container-high hover:bg-m3-surface-container-highest text-m3-on-surface rounded-full disabled:opacity-50 transition-colors"
-                >
-                  {clearingCache ? 'Clearing...' : 'Clear'}
-                </button>
-              )}
-            </div>
-
             {cacheTask.last_error && (
               <p className="text-base text-m3-error">Error: {cacheTask.last_error}</p>
             )}
@@ -649,24 +725,51 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
             )}
           </div>
         ))}
-      </div>
 
-      {/* Stats */}
-      <h2 className="text-xl font-medium mb-4 text-m3-on-surface">Stats</h2>
-      <div className="bg-m3-surface-container rounded-md p-6 mb-8">
+        {cacheStats && (
+          <div className="border-t border-m3-outline-variant pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-m3-on-surface">Disk Cache</p>
+                <p className="text-base text-m3-outline mt-0.5">Thumbnails, frames, previews, and subtitles cached on disk</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleClearDiskCache}
+                  disabled={clearingCache || cacheStats.disk_usage_bytes === 0}
+                  className="text-base px-3 py-1.5 bg-m3-primary-container hover:brightness-110 text-m3-on-primary-container rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {clearingCache ? 'Clearing...' : 'Clear Now'}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-base text-m3-on-surface-variant mt-1">
+              <span>Disk usage: <span className="text-m3-on-surface">{formatBytes(cacheStats.disk_usage_bytes)}</span></span>
+            </div>
+          </div>
+        )}
+
         {gifStats && (
-          <div className="grid grid-cols-3 gap-6">
-            <div>
-              <p className="text-2xl font-medium text-m3-primary">{gifStats.total_gifs.toLocaleString()}</p>
-              <p className="text-base text-m3-on-surface-variant">GIFs created</p>
+          <div className="border-t border-m3-outline-variant pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-m3-on-surface">GIF Storage</p>
+                <p className="text-base text-m3-outline mt-0.5">Permanently delete every user's generated GIFs and output files</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setConfirmDeleteAllOpen(true)}
+                  disabled={gifStats.total_gifs === 0 && gifStats.failed_gifs === 0}
+                  className="text-base px-3 py-1.5 bg-m3-error hover:brightness-110 text-m3-on-error rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Delete All
+                </button>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-medium text-m3-primary">{formatBytes(gifStats.total_size_bytes)}</p>
-              <p className="text-base text-m3-on-surface-variant">Total size</p>
-            </div>
-            <div>
-              <p className="text-2xl font-medium text-m3-error">{gifStats.failed_gifs.toLocaleString()}</p>
-              <p className="text-base text-m3-on-surface-variant">Failed</p>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-base text-m3-on-surface-variant mt-1">
+              <span>GIFs created: <span className="text-m3-on-surface">{gifStats.total_gifs.toLocaleString()}</span></span>
+              <span>Total size: <span className="text-m3-on-surface">{formatBytes(gifStats.total_size_bytes)}</span></span>
+              <span>Failed: <span className={gifStats.failed_gifs > 0 ? 'text-m3-error' : 'text-m3-on-surface'}>{gifStats.failed_gifs.toLocaleString()}</span></span>
             </div>
           </div>
         )}
@@ -749,6 +852,59 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
           </table>
         </div>
       </div>
+
+      {confirmDeleteAllOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => !deletingAll && setConfirmDeleteAllOpen(false)}
+        >
+          <div
+            className="bg-m3-surface-container rounded-xl p-6 shadow-elevation-3 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-medium text-m3-error">Delete all GIFs?</h2>
+              <button
+                onClick={() => setConfirmDeleteAllOpen(false)}
+                disabled={deletingAll}
+                className="text-m3-on-surface-variant hover:text-m3-on-surface text-2xl leading-none disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-base text-m3-on-surface mb-2">
+              This will permanently delete{' '}
+              <span className="font-medium">
+                {gifStats?.total_gifs.toLocaleString() ?? 0} GIF
+                {gifStats?.total_gifs === 1 ? '' : 's'}
+              </span>
+              {gifStats && gifStats.failed_gifs > 0 && (
+                <> and {gifStats.failed_gifs.toLocaleString()} failed record{gifStats.failed_gifs === 1 ? '' : 's'}</>
+              )}{' '}
+              from every user, along with their output files.
+            </p>
+            <p className="text-base text-m3-error mb-5 font-medium">
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteAllOpen(false)}
+                disabled={deletingAll}
+                className="text-base px-4 py-2 bg-m3-surface-container-high hover:bg-m3-surface-container-highest text-m3-on-surface rounded-full disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAllGifs}
+                disabled={deletingAll}
+                className="text-base px-4 py-2 bg-m3-error hover:brightness-110 text-m3-on-error rounded-full disabled:opacity-50 transition-all font-medium"
+              >
+                {deletingAll ? 'Deleting...' : 'Delete All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
