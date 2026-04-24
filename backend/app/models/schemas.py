@@ -17,7 +17,6 @@ class AppConfig(BaseModel):
     max_gif_duration_seconds: int = 15
     max_width: int = 480
     max_fps: int = 10
-    browse_page_size: int = 48
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

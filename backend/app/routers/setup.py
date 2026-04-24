@@ -94,5 +94,4 @@ async def get_feature_flags(user=Depends(get_current_user)):
     return {
         "public_sharing_enabled": config.public_sharing_enabled,
         "giphy_global_enabled": config.giphy_global_enabled,
-        "browse_page_size": config.browse_page_size,
     }

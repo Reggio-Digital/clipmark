@@ -9,7 +9,7 @@ export default function Gallery() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [giphyConfigured, setGiphyConfigured] = useState(false)
-  const [features, setFeatures] = useState<FeatureFlags>({ public_sharing_enabled: false, giphy_global_enabled: true, browse_page_size: 50 })
+  const [features, setFeatures] = useState<FeatureFlags>({ public_sharing_enabled: false, giphy_global_enabled: true })
   const [bulkMode, setBulkMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)

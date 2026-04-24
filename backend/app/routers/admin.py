@@ -8,10 +8,17 @@ from app.services.auth import (
     get_user_by_id,
     delete_user_sessions,
 )
-from app.services.plex import load_config, save_config
+from app.services.plex import (
+    load_config,
+    save_config,
+    get_available_servers,
+    connect_to_server,
+    user_has_server_access,
+)
 from app.services.scheduler import scheduler
 from app.services.library_cache import library_cache
 from app.dependencies import require_admin
+from app.routers.auth import peek_pending_token, pop_pending_token
 from app.models.schemas import (
     AdminUserInfo,
     AdminUserUpdate,
@@ -19,6 +26,8 @@ from app.models.schemas import (
     ScheduledTaskInfo,
     ScheduledTaskUpdate,
     LibraryCacheStats,
+    Server,
+    ServerSelectRequest,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -108,6 +117,56 @@ async def disconnect_server(admin=Depends(require_admin)):
     return {"success": True}
 
 
+@router.get("/server/list-servers", response_model=list[Server])
+async def admin_list_servers(pin_id: str, admin=Depends(require_admin)):
+    """List Plex servers available to a completed OAuth token (identified by pin_id).
+    Does not consume the pending token so the admin can still call /change afterwards."""
+    plex_token = peek_pending_token(pin_id)
+    if not plex_token:
+        raise HTTPException(status_code=400, detail="Invalid or expired pin. Please try again.")
+    try:
+        return get_available_servers(plex_token)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to get Plex servers")
+
+
+@router.post("/server/change")
+async def admin_change_server(
+    request: ServerSelectRequest,
+    pin_id: str,
+    admin=Depends(require_admin),
+):
+    """Swap the configured Plex server using a completed OAuth token."""
+    plex_token = pop_pending_token(pin_id)
+    if not plex_token:
+        raise HTTPException(status_code=400, detail="Invalid or expired pin. Please try again.")
+
+    if not user_has_server_access(plex_token, request.server_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This Plex account does not have access to the selected server.",
+        )
+
+    try:
+        server_url, server_name = connect_to_server(
+            plex_token, request.server_id, request.connection_uri
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to connect to server")
+
+    config = load_config()
+    config.plex_token = plex_token
+    config.server_url = server_url
+    config.server_name = server_name
+    config.server_machine_id = request.server_id
+    save_config(config)
+    library_cache.clear()
+
+    return {"success": True, "server_name": server_name, "server_url": server_url}
+
+
 @router.get("/settings")
 async def get_admin_settings(admin=Depends(require_admin)):
     """Get admin-controlled global settings."""
@@ -120,7 +179,6 @@ async def get_admin_settings(admin=Depends(require_admin)):
         "max_gif_duration_seconds": config.max_gif_duration_seconds,
         "max_width": config.max_width,
         "max_fps": config.max_fps,
-        "browse_page_size": config.browse_page_size,
     }
 
 
@@ -145,8 +203,6 @@ async def update_admin_settings(
         config.max_width = max(100, min(640, int(request["max_width"])))
     if "max_fps" in request:
         config.max_fps = max(5, min(15, int(request["max_fps"])))
-    if "browse_page_size" in request:
-        config.browse_page_size = max(12, min(100, int(request["browse_page_size"])))
     save_config(config)
     return {
         "public_sharing_enabled": config.public_sharing_enabled,
@@ -156,7 +212,6 @@ async def update_admin_settings(
         "max_gif_duration_seconds": config.max_gif_duration_seconds,
         "max_width": config.max_width,
         "max_fps": config.max_fps,
-        "browse_page_size": config.browse_page_size,
     }
 
 

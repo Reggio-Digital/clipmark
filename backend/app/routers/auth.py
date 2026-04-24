@@ -42,7 +42,7 @@ _pending_plex_tokens: dict[str, tuple[str, float]] = {}
 _setup_lock = asyncio.Lock()
 
 
-def _store_pending_token(pin_id: str, token: str) -> None:
+def store_pending_token(pin_id: str, token: str) -> None:
     now = time.monotonic()
     expired = [k for k, (_, ts) in _pending_plex_tokens.items() if now - ts > PENDING_TOKEN_TTL]
     for k in expired:
@@ -53,12 +53,23 @@ def _store_pending_token(pin_id: str, token: str) -> None:
     _pending_plex_tokens[pin_id] = (token, now)
 
 
-def _pop_pending_token(pin_id: str) -> str | None:
+def pop_pending_token(pin_id: str) -> str | None:
     entry = _pending_plex_tokens.pop(pin_id, None)
     if not entry:
         return None
     token, ts = entry
     if time.monotonic() - ts > PENDING_TOKEN_TTL:
+        return None
+    return token
+
+
+def peek_pending_token(pin_id: str) -> str | None:
+    entry = _pending_plex_tokens.get(pin_id)
+    if not entry:
+        return None
+    token, ts = entry
+    if time.monotonic() - ts > PENDING_TOKEN_TTL:
+        _pending_plex_tokens.pop(pin_id, None)
         return None
     return token
 
@@ -102,7 +113,7 @@ async def initiate_plex_auth(forward_url: str | None = None):
 async def check_plex_auth(pin_id: str):
     token = check_oauth(pin_id)
     if token:
-        _store_pending_token(pin_id, token)
+        store_pending_token(pin_id, token)
         return AuthCheckResponse(complete=True, token=pin_id)
     return AuthCheckResponse(complete=False)
 
@@ -132,7 +143,7 @@ async def plex_login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    plex_token = _pop_pending_token(request.pin_id)
+    plex_token = pop_pending_token(request.pin_id)
     if not plex_token:
         raise HTTPException(status_code=400, detail="Invalid or expired pin. Please try again.")
 
@@ -150,7 +161,7 @@ async def plex_login(
         except Exception:
             raise HTTPException(status_code=500, detail="Failed to get Plex servers")
 
-        _store_pending_token(request.pin_id, plex_token)
+        store_pending_token(request.pin_id, plex_token)
 
         return {
             "success": True,
@@ -214,7 +225,7 @@ async def setup_select_server(
         if not needs_setup:
             raise HTTPException(status_code=400, detail="Setup already complete")
 
-        plex_token = _pop_pending_token(pin_id)
+        plex_token = pop_pending_token(pin_id)
         if not plex_token:
             raise HTTPException(status_code=400, detail="Invalid or expired session. Please try again.")
 

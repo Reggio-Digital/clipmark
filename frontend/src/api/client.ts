@@ -195,7 +195,6 @@ export interface ShareResponse {
 export interface FeatureFlags {
   public_sharing_enabled: boolean
   giphy_global_enabled: boolean
-  browse_page_size: number
 }
 
 export interface AdminSettings {
@@ -206,7 +205,6 @@ export interface AdminSettings {
   max_gif_duration_seconds: number
   max_width: number
   max_fps: number
-  browse_page_size: number
 }
 
 export interface PublicGif {
@@ -451,6 +449,16 @@ export const updateAdminUser = (userId: string, update: { enabled?: boolean; rol
   })
 export const getAdminServerInfo = () => fetchJson<{ configured: boolean; server_name?: string; server_url?: string }>('/api/admin/server')
 export const adminDisconnectServer = () => fetchJson<{ success: boolean }>('/api/admin/server/disconnect', { method: 'POST' })
+export const adminListServers = (pinId: string) =>
+  fetchJson<Server[]>(`/api/admin/server/list-servers?pin_id=${pinId}`)
+export const adminChangeServer = (pinId: string, serverId: string, connectionUri?: string) =>
+  fetchJson<{ success: boolean; server_name: string; server_url: string }>(
+    `/api/admin/server/change?pin_id=${pinId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ server_id: serverId, connection_uri: connectionUri }),
+    }
+  )
 export const getAdminSettings = () => fetchJson<AdminSettings>('/api/admin/settings')
 export const updateAdminSettings = (settings: Partial<AdminSettings>) =>
   fetchJson<AdminSettings>('/api/admin/settings', {

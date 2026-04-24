@@ -3,6 +3,7 @@ import {
   getAdminUsers,
   updateAdminUser,
   getAdminServerInfo,
+  adminDisconnectServer,
   getAdminSettings,
   updateAdminSettings,
   getAdminTasks,
@@ -16,10 +17,12 @@ import {
   ScheduledTaskInfo,
   LibraryCacheStats,
   GifStats,
+  UserInfo,
 } from '../api/client'
 import { showToast } from '../components/Toast'
+import ServerChangeModal from '../components/ServerChangeModal'
 
-export default function Admin() {
+export default function Admin({ currentUser }: { currentUser: UserInfo }) {
   const [users, setUsers] = useState<AdminUserInfo[]>([])
   const [serverInfo, setServerInfo] = useState<{ configured: boolean; server_name?: string; server_url?: string } | null>(null)
   const [settings, setSettings] = useState<AdminSettings | null>(null)
@@ -32,6 +35,8 @@ export default function Admin() {
   const [editingTask, setEditingTask] = useState<string | null>(null)
   const [editInterval, setEditInterval] = useState<number>(0)
   const [gifStats, setGifStats] = useState<GifStats | null>(null)
+  const [changeServerOpen, setChangeServerOpen] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -198,6 +203,22 @@ export default function Admin() {
 
   const [clearingCache, setClearingCache] = useState(false)
 
+  const handleDisconnect = async () => {
+    if (!window.confirm('Disconnect from the Plex server? All users will lose access until you reconnect.')) {
+      return
+    }
+    setDisconnecting(true)
+    try {
+      await adminDisconnectServer()
+      showToast('Server disconnected', 'success')
+      await loadData()
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to disconnect')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   const handleClearDiskCache = async () => {
     setClearingCache(true)
 
@@ -230,15 +251,46 @@ export default function Admin() {
       {/* Server Info */}
       <h2 className="text-xl font-medium mb-4 text-m3-on-surface">Server</h2>
       <div className="bg-m3-surface-container rounded-md p-6 mb-8">
-        {serverInfo?.configured ? (
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-m3-success rounded-full"></div>
-            <span className="text-m3-on-surface">Connected to <strong>{serverInfo.server_name}</strong></span>
+        <div className="flex items-center justify-between gap-3">
+          {serverInfo?.configured ? (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-3 h-3 bg-m3-success rounded-full shrink-0"></div>
+              <span className="text-m3-on-surface truncate">Connected to <strong>{serverInfo.server_name}</strong></span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-3 h-3 bg-m3-outline rounded-full shrink-0"></div>
+              <span className="text-m3-on-surface-variant">No server connected</span>
+            </div>
+          )}
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setChangeServerOpen(true)}
+              className="text-base px-3 py-1.5 bg-m3-primary-container hover:brightness-110 text-m3-on-primary-container rounded-full transition-all"
+            >
+              {serverInfo?.configured ? 'Change Server' : 'Connect Server'}
+            </button>
+            {serverInfo?.configured && (
+              <button
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+                className="text-base px-3 py-1.5 bg-m3-error-container hover:brightness-110 text-m3-on-error-container rounded-full disabled:opacity-50 transition-all"
+              >
+                {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            )}
           </div>
-        ) : (
-          <p className="text-m3-on-surface-variant">No server connected</p>
-        )}
+        </div>
       </div>
+      <ServerChangeModal
+        open={changeServerOpen}
+        onClose={() => setChangeServerOpen(false)}
+        onSuccess={(name) => {
+          setChangeServerOpen(false)
+          showToast(`Connected to ${name}`, 'success')
+          loadData()
+        }}
+      />
 
       {/* Settings */}
       <h2 className="text-xl font-medium mb-4 text-m3-on-surface">Settings</h2>
@@ -284,32 +336,6 @@ export default function Admin() {
               </button>
             </div>
           </>
-        )}
-      </div>
-
-      {/* Browse Settings */}
-      <h2 className="text-xl font-medium mb-4 text-m3-on-surface">Browse Settings</h2>
-      <div className="bg-m3-surface-container rounded-md p-6 mb-8 space-y-4">
-        {settings && (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-m3-on-surface">Items Per Page</p>
-              <p className="text-base text-m3-on-surface-variant">Number of items shown per page when browsing libraries (12-100)</p>
-            </div>
-            <input
-              type="number"
-              min="12"
-              max="100"
-              value={settings.browse_page_size}
-              onChange={(e) => {
-                const v = parseInt(e.target.value) || 48
-                setSettings({ ...settings, browse_page_size: v })
-              }}
-              onBlur={(e) => handleUpdateSetting('browse_page_size', parseInt(e.target.value) || 48)}
-              disabled={savingSettings}
-              className="w-20 bg-m3-surface-container-high border border-m3-outline-variant rounded-sm px-3 py-1.5 text-base text-right text-m3-on-surface disabled:opacity-50 focus:border-m3-primary focus:outline-none transition-colors"
-            />
-          </div>
         )}
       </div>
 
@@ -654,7 +680,6 @@ export default function Admin() {
             <thead>
               <tr className="border-b border-m3-outline-variant">
                 <th className="text-left px-4 py-3 text-base text-m3-on-surface-variant font-medium">User</th>
-                <th className="text-left px-4 py-3 text-base text-m3-on-surface-variant font-medium">Role</th>
                 <th className="text-left px-4 py-3 text-base text-m3-on-surface-variant font-medium">GIFs</th>
                 <th className="text-left px-4 py-3 text-base text-m3-on-surface-variant font-medium">Last Login</th>
                 <th className="text-left px-4 py-3 text-base text-m3-on-surface-variant font-medium">Status</th>
@@ -673,18 +698,15 @@ export default function Admin() {
                           {user.username.charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <div>
+                      <div className="flex items-center gap-2">
                         <p className="font-medium text-base text-m3-on-surface">{user.username}</p>
-                        {user.email && <p className="text-xs text-m3-outline">{user.email}</p>}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          user.role === 'admin' ? 'bg-m3-primary-container text-m3-on-primary-container' : 'bg-m3-surface-container-high text-m3-on-surface'
+                        }`}>
+                          {user.role}
+                        </span>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-base px-2.5 py-0.5 rounded-full ${
-                      user.role === 'admin' ? 'bg-m3-primary-container text-m3-on-primary-container' : 'bg-m3-surface-container-high text-m3-on-surface'
-                    }`}>
-                      {user.role}
-                    </span>
                   </td>
                   <td className="px-4 py-3 text-base text-m3-on-surface">{user.gif_count}</td>
                   <td className="px-4 py-3 text-base text-m3-on-surface-variant">{formatDate(user.last_login)}</td>
@@ -695,24 +717,30 @@ export default function Admin() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={() => handleToggleRole(user.id, user.role)}
-                        disabled={updating === user.id}
-                        className="text-xs px-2.5 py-1 bg-m3-surface-container-high hover:bg-m3-surface-container-highest disabled:opacity-50 rounded-full text-m3-on-surface transition-colors"
-                      >
-                        {user.role === 'admin' ? 'Make User' : 'Make Admin'}
-                      </button>
-                      <button
-                        onClick={() => handleToggleEnabled(user.id, user.enabled)}
-                        disabled={updating === user.id}
-                        className={`text-xs px-2.5 py-1 rounded-full disabled:opacity-50 transition-all ${
-                          user.enabled
-                            ? 'bg-m3-error-container hover:brightness-110 text-m3-on-error-container'
-                            : 'bg-m3-success-container hover:brightness-110 text-m3-success'
-                        }`}
-                      >
-                        {user.enabled ? 'Disable' : 'Enable'}
-                      </button>
+                      {user.id === currentUser.id ? (
+                        <span className="text-xs text-m3-on-surface-variant italic">You</span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleToggleRole(user.id, user.role)}
+                            disabled={updating === user.id}
+                            className="text-xs px-2.5 py-1 bg-m3-surface-container-high hover:bg-m3-surface-container-highest disabled:opacity-50 rounded-full text-m3-on-surface transition-colors"
+                          >
+                            {user.role === 'admin' ? 'Make User' : 'Make Admin'}
+                          </button>
+                          <button
+                            onClick={() => handleToggleEnabled(user.id, user.enabled)}
+                            disabled={updating === user.id}
+                            className={`text-xs px-2.5 py-1 rounded-full disabled:opacity-50 transition-all ${
+                              user.enabled
+                                ? 'bg-m3-error-container hover:brightness-110 text-m3-on-error-container'
+                                : 'bg-m3-success-container hover:brightness-110 text-m3-success'
+                            }`}
+                          >
+                            {user.enabled ? 'Disable' : 'Enable'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

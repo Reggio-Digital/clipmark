@@ -164,7 +164,7 @@ function AuthenticatedApp({ user, onLogout, onUserUpdate }: { user: UserInfo; on
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/settings" element={<Setup user={user} onUserUpdate={onUserUpdate} />} />
           {user.role === 'admin' && (
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={<Admin currentUser={user} />} />
           )}
           <Route path="/s/:token" element={<SharedGif />} />
           <Route path="*" element={<Navigate to="/browse" replace />} />

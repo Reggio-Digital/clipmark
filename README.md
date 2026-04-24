@@ -154,23 +154,26 @@ If your media only has PGS/DVD bitmap subtitles, convert to SRT (via OCR tools) 
 
 ## Development
 
-First-time setup:
+Prerequisites: Node 18+, Python 3.12, `ffmpeg`, and `gifsicle` on your PATH.
+
+First-time setup (from the repo root):
 
 ```bash
-# Frontend
-cd frontend && npm install
-
-# Backend
-cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
+cd frontend && npm install && cd ..
+cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt && cd ..
 ```
 
-Then from the `frontend/` directory:
+Start the app:
 
 ```bash
 npm run dev
 ```
 
-This starts both the backend (port 8000) and frontend dev server (port 5173) with hot reload. You can also run `npm run dev` from the project root, which delegates to the frontend script.
+That runs the backend (Uvicorn, port 8000) and the frontend (Vite, port 5173) together with hot reload. Open **http://localhost:5173** — Vite proxies `/api/*` and `/output/*` to the backend.
+
+The dev script also runs `pip install -q -r requirements.txt` against the backend venv on every start, so new Python dependencies are picked up automatically. Local data (config, SQLite DB, cache, generated GIFs) lives in `./data/` via `DATA_DIR=../data`.
+
+Running `npm run dev` from `frontend/` works too — the root script just delegates to it.
 
 ### Build Docker Image
 
