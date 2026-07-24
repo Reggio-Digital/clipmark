@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router'
 import { useEffect, useState } from 'react'
 import Browse from './pages/Browse'
 import Search from './pages/Search'

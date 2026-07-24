@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router'
 import { getShow, getSeasons, getEpisodes, getFavoriteIds, addFavorite, removeFavorite, ShowDetail, Season, MediaItem, FavoriteCreate } from '../api/client'
 import MediaGrid from '../components/MediaGrid'
 

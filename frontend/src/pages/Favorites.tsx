@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { listFavorites, removeFavorite, FavoriteResponse } from '../api/client'
 import { showToast } from '../components/Toast'
 
