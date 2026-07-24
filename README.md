@@ -30,7 +30,7 @@ Create GIF clips from your Plex media library. Self-hosted, single-container. Op
 docker run -d -p 8000:8000 -v ./data:/data --name clipmark ghcr.io/reggio-digital/clipmark:latest
 ```
 
-Open http://localhost:8000 and connect your Plex account.
+Open <http://localhost:8000> and connect your Plex account.
 
 > **Note:** Plex Media Server must be reachable from the container.
 
@@ -68,8 +68,8 @@ docker run -d \
 Environment variables (all optional):
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-|`DATA_DIR` | `/data` | Persistent storage path |
+| --- | --- | --- |
+| `DATA_DIR` | `/data` | Persistent storage path |
 | `MAX_CONCURRENT_JOBS` | `1` | Parallel FFmpeg jobs |
 | `MAX_QUEUED_JOBS` | `10` | Max pending jobs |
 | `MAX_QUEUED_JOBS_PER_USER` | `3` | Max pending jobs per user |
@@ -89,7 +89,7 @@ Output defaults are 480px width and 10 FPS. Environment variables define upper l
 These are managed via the admin UI and stored in `data/config.json`:
 
 | Setting | Default | Description |
-|---------|---------|-------------|
+| --- | --- | --- |
 | `gifsicle_enabled` | `true` | Enable gifsicle GIF compression |
 | `gifsicle_lossy` | `100` | Lossy compression level (0-200) |
 | `public_sharing_enabled` | `false` | Allow public GIF sharing via link |
@@ -103,7 +103,7 @@ These are managed via the admin UI and stored in `data/config.json`:
 
 Mount `/data` as a volume. Contains:
 
-```
+```text
 /data/
 ├── config.json       # Plex token (treat as secret)
 ├── clipmark.db       # SQLite database
@@ -130,8 +130,8 @@ Once configured, a GIPHY upload button appears on completed GIFs in the gallery.
 
 Clipmark uses gifsicle to reduce GIF file sizes by 20-40%. This is enabled by default and can be configured in **Settings**:
 
-- **Enable/disable** — Toggle optimization on or off
-- **Lossy compression** — Adjust quality vs size (0-200, default 100)
+- **Enable/disable** - Toggle optimization on or off
+- **Lossy compression** - Adjust quality vs size (0-200, default 100)
 
 Higher lossy values = more compression = smaller files but more artifacts.
 
@@ -139,14 +139,15 @@ Higher lossy values = more compression = smaller files but more artifacts.
 
 Clipmark detects subtitles associated with Plex items (sidecar or embedded). If no subtitles appear for your media:
 
-1. **Check Plex first** — Open the media in Plex and verify subtitles are available there
-2. **Search in Plex** — Plex can [search for and download subtitles](https://support.plex.tv/articles/subtitle-search/) directly from the media detail page
-3. **Add external subtitles** — [Place `.srt` files](https://support.plex.tv/articles/200471133-adding-local-subtitles-to-your-media/) alongside your media files with matching names (e.g., `Movie.mp4` → `Movie.srt` or `Movie.en.srt`), then refresh the library in Plex
-4. **Embedded subtitles** — These are automatically detected if present in the media file
+1. **Check Plex first** - Open the media in Plex and verify subtitles are available there
+2. **Search in Plex** - Plex can [search for and download subtitles](https://support.plex.tv/articles/subtitle-search/) directly from the media detail page
+3. **Add external subtitles** - [Place `.srt` files](https://support.plex.tv/articles/200471133-adding-local-subtitles-to-your-media/) alongside your media files with matching names (e.g., `Movie.mp4` → `Movie.srt` or `Movie.en.srt`), then refresh the library in Plex
+4. **Embedded subtitles** - These are automatically detected if present in the media file
 
 **Supported formats for burn-in:**
-- SRT, ASS/SSA, WebVTT — Full support (text-based)
-- PGS, DVD subtitles — Detected but cannot be burned into GIFs (image-based bitmap subtitles)
+
+- SRT, ASS/SSA, WebVTT - Full support (text-based)
+- PGS, DVD subtitles - Detected but cannot be burned into GIFs (image-based bitmap subtitles)
 
 If your media only has PGS/DVD bitmap subtitles, convert to SRT (via OCR tools) or use custom text overlay instead.
 
@@ -169,11 +170,11 @@ Start the app:
 npm run dev
 ```
 
-That runs the backend (Uvicorn, port 8000) and the frontend (Vite, port 5173) together with hot reload. Open **http://localhost:5173** — Vite proxies `/api/*` and `/output/*` to the backend.
+That runs the backend (Uvicorn, port 8000) and the frontend (Vite, port 5173) together with hot reload. Open **<http://localhost:5173>**. Vite proxies `/api/*` and `/output/*` to the backend.
 
 The dev script also runs `pip install -q -r requirements.txt` against the backend venv on every start, so new Python dependencies are picked up automatically. Local data (config, SQLite DB, cache, generated GIFs) lives in `./data/` via `DATA_DIR=../data`.
 
-Running `npm run dev` from `frontend/` works too — the root script just delegates to it.
+Running `npm run dev` from `frontend/` works too; the root script just delegates to it.
 
 ### Build Docker Image
 
@@ -195,4 +196,4 @@ docker build -t clipmark .
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE) for details.

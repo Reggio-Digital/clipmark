@@ -433,7 +433,7 @@ export default function Admin({ currentUser }: { currentUser: UserInfo }) {
       <div className="bg-m3-surface-container rounded-md p-6 mb-8 space-y-4">
         <div className="bg-m3-surface-container-high/50 rounded-sm px-4 py-3 text-base text-m3-on-surface-variant">
           <p className="font-medium text-m3-on-surface mb-1">Recommended defaults for sharing</p>
-          <p>480px width, 10 fps, 15s duration, lossy 100 keeps most GIFs under 5-8 MB — ideal for Discord, GIPHY, and messaging apps. Higher values produce larger files that may not embed or upload reliably.</p>
+          <p>480px width, 10 fps, 15s duration, lossy 100 keeps most GIFs under 5-8 MB, ideal for Discord, GIPHY, and messaging apps. Higher values produce larger files that may not embed or upload reliably.</p>
         </div>
         {settings && (
           <>
