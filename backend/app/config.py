@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 CONFIG_FILE = DATA_DIR / "config.json"
