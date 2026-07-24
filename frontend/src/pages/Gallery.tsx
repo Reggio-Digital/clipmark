@@ -16,7 +16,7 @@ export default function Gallery() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [sort, setSort] = useState('newest')
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const pageRef = useRef(page)
   pageRef.current = page
