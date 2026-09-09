@@ -1,159 +1,82 @@
 import asyncio
-import logging
 import shutil
-from datetime import datetime
+import time
+from collections import OrderedDict
 
-from app.config import CACHE_DIR, CACHE_SUBDIRS, THUMBNAILS_CACHE_DIR
-from app.models.schemas import Library, MediaItem, ShowDetail, Season
-from app.services.plex import get_plex_server, get_libraries, get_library_items, get_show_detail, get_show_seasons, get_show_episodes
+from plexapi.exceptions import Unauthorized
+from plexapi.server import PlexServer
 
-logger = logging.getLogger(__name__)
+from app.config import CACHE_DIR, CACHE_SUBDIRS
+from app.services.plex import get_user_plex_server, load_config
+
+SERVER_CACHE_TTL_SECONDS = 30
+SERVER_CACHE_MAX_SIZE = 128
 
 
 class LibraryCache:
     def __init__(self) -> None:
-        self._libraries: list[Library] = []
-        self._library_items: dict[str, tuple[list[MediaItem], int]] = {}
-        self._show_details: dict[str, ShowDetail] = {}
-        self._seasons: dict[str, list[Season]] = {}
-        self._episodes: dict[str, tuple[list[MediaItem], int]] = {}  # key: "showId:seasonIndex"
-        self._last_refreshed: datetime | None = None
-        self._lock = asyncio.Lock()
-        self._refresh_status: str | None = None
+        self._servers: OrderedDict[tuple[str, str, str], tuple[PlexServer, float]] = OrderedDict()
+        self._pending: dict[tuple[str, str, str], asyncio.Task] = {}
 
-    @property
-    def is_populated(self) -> bool:
-        return self._last_refreshed is not None
-
-    def get_libraries(self) -> list[Library] | None:
-        """Return cached libraries, or None if cache is empty."""
-        if not self.is_populated:
+    async def get_server(self, token: str | None, server_id: str | None) -> PlexServer | None:
+        config = load_config()
+        if not token or not server_id:
+            raise Unauthorized("Sign in to Plex again for the configured server")
+        if not config.server_url or not config.server_machine_id:
             return None
-        return self._libraries
+        if server_id != config.server_machine_id:
+            raise Unauthorized("Sign in to Plex again for the configured server")
+        key = (config.server_url, server_id, token)
+        now = time.monotonic()
+        for expired_key, (_, expires_at) in list(self._servers.items()):
+            if now >= expires_at:
+                self._servers.pop(expired_key)
+        if key in self._servers:
+            self._servers.move_to_end(key)
+            return self._servers[key][0]
+        if key not in self._pending:
+            self._pending[key] = asyncio.create_task(self._connect(key))
+        return await asyncio.shield(self._pending[key])
 
-    def get_library_items(
-        self, library_id: str, page: int, page_size: int, sort: str = "added"
-    ) -> tuple[list[MediaItem], int] | None:
-        """Return cached items for a library with pagination and sorting, or None if not cached."""
-        if library_id not in self._library_items:
-            return None
-        all_items, total = self._library_items[library_id]
-        if sort == "alpha":
-            all_items = sorted(all_items, key=lambda x: x.title.lower())
-        elif sort == "year":
-            all_items = sorted(all_items, key=lambda x: x.year or 0, reverse=True)
-        else:  # "added" (default) — newest first
-            all_items = sorted(all_items, key=lambda x: x.added_at or "", reverse=True)
-        start = (page - 1) * page_size
-        end = start + page_size
-        return all_items[start:end], total
-
-    def get_show_detail(self, show_id: str) -> ShowDetail | None:
-        """Return cached show detail, or None if not cached."""
-        return self._show_details.get(show_id)
-
-    def set_show_detail(self, show_id: str, detail: ShowDetail) -> None:
-        self._show_details[show_id] = detail
-
-    def get_seasons(self, show_id: str) -> list[Season] | None:
-        """Return cached seasons for a show, or None if not cached."""
-        return self._seasons.get(show_id)
-
-    def set_seasons(self, show_id: str, seasons: list[Season]) -> None:
-        self._seasons[show_id] = seasons
-
-    def get_episodes(self, show_id: str, season_index: int) -> tuple[list[MediaItem], int] | None:
-        """Return cached episodes for a show/season, or None if not cached."""
-        key = f"{show_id}:{season_index}"
-        return self._episodes.get(key)
-
-    def set_episodes(self, show_id: str, season_index: int, items: list[MediaItem], total: int) -> None:
-        self._episodes[f"{show_id}:{season_index}"] = (items, total)
-
-    async def refresh(self) -> None:
-        """Full refresh of all library data from Plex."""
-        server = get_plex_server()
-        if not server:
-            logger.warning("Cannot refresh library cache: Plex server not configured")
-            return
-
-        async with self._lock:
-            self._refresh_status = "Discovering libraries..."
-            # Fetch libraries (sync plexapi call, run in thread)
-            libraries = await asyncio.to_thread(get_libraries, server)
-
-            # Fetch all items for each library
-            items_cache: dict[str, tuple[list[MediaItem], int]] = {}
-            for i, lib in enumerate(libraries, 1):
-                self._refresh_status = f"Scanning {lib.title} ({i}/{len(libraries)})..."
-                try:
-                    items, total = await asyncio.to_thread(
-                        get_library_items, server, lib.id, 1, 999999
-                    )
-                    items_cache[lib.id] = (items, total)
-                except Exception:
-                    logger.exception("Failed to cache library %s", lib.id)
-
-            # Atomic swap
-            self._libraries = libraries
-            self._library_items = items_cache
-            self._show_details = {}
-            self._seasons = {}
-            self._episodes = {}
-            self._last_refreshed = datetime.utcnow()
-            self._refresh_status = None
-            logger.info(
-                "Library cache refreshed: %d libraries, %d total items",
-                len(libraries),
-                sum(t for _, t in items_cache.values()),
-            )
+    async def _connect(self, key: tuple[str, str, str]) -> PlexServer | None:
+        try:
+            server = await asyncio.to_thread(get_user_plex_server, key[2], key[1])
+            # A disconnect/clear during the network call must not repopulate the cache.
+            if server and self._pending.get(key) is asyncio.current_task():
+                self._servers[key] = (server, time.monotonic() + SERVER_CACHE_TTL_SECONDS)
+                while len(self._servers) > SERVER_CACHE_MAX_SIZE:
+                    self._servers.popitem(last=False)
+            return server
+        finally:
+            if self._pending.get(key) is asyncio.current_task():
+                self._pending.pop(key)
 
     @staticmethod
     def _dir_size_bytes(path) -> int:
-        """Sum file sizes in a directory (non-recursive)."""
         if not path.exists():
             return 0
         return sum(f.stat().st_size for f in path.iterdir() if f.is_file())
 
     def get_stats(self) -> dict:
-        """Return cache statistics."""
-        libraries = []
-        for lib in self._libraries:
-            items_data = self._library_items.get(lib.id)
-            libraries.append({
-                "id": lib.id,
-                "title": lib.title,
-                "type": lib.type,
-                "item_count": items_data[1] if items_data else 0,
-            })
-        # Calculate disk usage across all cache subdirectories
-        disk_usage_bytes = sum(
-            self._dir_size_bytes(CACHE_DIR / sub)
-            for sub in CACHE_SUBDIRS
-        )
+        # Keep the admin response contract without retaining an owner's library inventory.
         return {
-            "populated": self.is_populated,
-            "library_count": len(self._libraries),
-            "total_items": sum(t for _, t in self._library_items.values()),
-            "last_refreshed": self._last_refreshed.isoformat() if self._last_refreshed else None,
-            "refresh_status": self._refresh_status,
-            "disk_usage_bytes": disk_usage_bytes,
-            "libraries": libraries,
+            "populated": False,
+            "library_count": 0,
+            "total_items": 0,
+            "last_refreshed": None,
+            "refresh_status": None,
+            "disk_usage_bytes": sum(self._dir_size_bytes(CACHE_DIR / sub) for sub in CACHE_SUBDIRS),
+            "libraries": [],
         }
 
     def clear(self) -> None:
-        """Clear the cache (e.g., on server disconnect)."""
-        self._libraries = []
-        self._library_items = {}
-        self._show_details = {}
-        self._seasons = {}
-        self._episodes = {}
-        self._last_refreshed = None
+        self._servers.clear()
+        self._pending.clear()
         self.clear_disk_cache()
 
     @staticmethod
     def clear_disk_cache() -> None:
-        """Clear all cached files on disk (thumbnails, frames, previews)."""
+        """Clear all cached files on disk (thumbnails, frames, previews, subtitles)."""
         for sub in CACHE_SUBDIRS:
             sub_dir = CACHE_DIR / sub
             if sub_dir.exists():

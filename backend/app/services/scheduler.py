@@ -3,7 +3,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.database import async_session
 from app.models.db import ScheduledTask
@@ -20,13 +20,6 @@ def register_task(task_id: str, func: Callable) -> None:
 
 
 TASK_DEFAULTS = [
-    {
-        "id": "library_cache_refresh",
-        "name": "Library Cache Refresh",
-        "description": "Refreshes cached Plex library and item data",
-        "interval_minutes": 1440,
-        "enabled": True,
-    },
     {
         "id": "cache_cleanup",
         "name": "Cache Cleanup",
@@ -51,6 +44,7 @@ class TaskScheduler:
     async def seed_tasks(self) -> None:
         """Insert default task rows if they don't exist."""
         async with async_session() as db:
+            await db.execute(delete(ScheduledTask).where(ScheduledTask.id == "library_cache_refresh"))
             for task_def in TASK_DEFAULTS:
                 result = await db.execute(
                     select(ScheduledTask).where(ScheduledTask.id == task_def["id"])

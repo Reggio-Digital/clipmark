@@ -98,6 +98,8 @@ async def create_user(
     plex_email: str | None = None,
     plex_thumb: str | None = None,
     role: str = "user",
+    plex_token: str | None = None,
+    plex_server_id: str | None = None,
 ) -> User:
     """Create a new user."""
     user = User(
@@ -106,6 +108,8 @@ async def create_user(
         plex_username=plex_username,
         plex_email=plex_email,
         plex_thumb=plex_thumb,
+        plex_token=plex_token,
+        plex_server_id=plex_server_id,
         role=role,
         enabled=True,
         created_at=datetime.utcnow(),
@@ -123,9 +127,14 @@ async def update_user_login(
     plex_username: str | None = None,
     plex_email: str | None = None,
     plex_thumb: str | None = None,
+    plex_token: str | None = None,
+    plex_server_id: str | None = None,
 ) -> None:
     """Update user info on login."""
     user.last_login = datetime.utcnow()
+    if plex_token is not None:
+        user.plex_token = plex_token
+        user.plex_server_id = plex_server_id
     if plex_username:
         user.plex_username = plex_username
     if plex_email is not None:

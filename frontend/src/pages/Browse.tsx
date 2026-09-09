@@ -12,6 +12,7 @@ export default function Browse() {
   const [totalItems, setTotalItems] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
   const [sort, setSort] = useState<'added' | 'alpha' | 'year'>('added')
@@ -20,20 +21,25 @@ export default function Browse() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    getLibraries().then(setLibraries)
+    getLibraries().then(setLibraries).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load libraries'))
     getSetupStatus().then((s) => setServerName(s.server_name || null)).catch(() => {})
     getFavoriteIds().then((ids) => setFavoriteIds(new Set(ids))).catch(() => {})
   }, [])
 
   useEffect(() => {
     if (!libraryId) {
+      setError(null)
       setLoading(false)
       return
     }
     setLoading(true)
+    setError(null)
     getLibraryItems(libraryId, page, pageSize, sort).then((response) => {
       setItems(response.items)
       setTotalItems(response.total_items)
+      setLoading(false)
+    }).catch((e) => {
+      setError(e instanceof Error ? e.message : 'Failed to load library')
       setLoading(false)
     })
   }, [libraryId, page, pageSize, sort])
@@ -44,7 +50,7 @@ export default function Browse() {
       return
     }
     const timeout = setTimeout(() => {
-      search(searchQuery).then(setSearchResults)
+      search(searchQuery).then(setSearchResults).catch((e) => setError(e instanceof Error ? e.message : 'Search failed'))
     }, 300)
     return () => clearTimeout(timeout)
   }, [searchQuery])
@@ -85,6 +91,8 @@ export default function Browse() {
   }
 
   const totalPages = Math.ceil(totalItems / pageSize)
+
+  if (error) return <p role="alert" className="text-m3-error">{error}</p>
 
   return (
     <div>

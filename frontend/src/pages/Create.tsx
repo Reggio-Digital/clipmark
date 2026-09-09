@@ -29,6 +29,7 @@ export default function Create() {
   const location = useLocation()
   const locationState = location.state as { startMs?: number; endMs?: number } | null
   const [media, setMedia] = useState<MediaDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [subtitles, setSubtitles] = useState<SubtitleLine[]>([])
   const [loadingSubtitles, setLoadingSubtitles] = useState(false)
   const [selectedTrack, setSelectedTrack] = useState<number | null>(null)
@@ -57,6 +58,7 @@ export default function Create() {
 
   useEffect(() => {
     if (!mediaId) return
+    setError(null)
     getMedia(mediaId).then((m) => {
       setMedia(m)
       if (locationState?.startMs != null && locationState?.endMs != null) {
@@ -68,7 +70,7 @@ export default function Create() {
       if (m.subtitle_tracks.length > 0) {
         setTextMode('subtitles')
       }
-    })
+    }).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load media'))
     getGiphyStatus().then((s) => setGiphyConfigured(s.configured))
   }, [mediaId, locationState])
 
@@ -243,6 +245,8 @@ export default function Create() {
     setCurrentGif(null)
     setCreatingGif(false)
   }
+
+  if (error) return <p role="alert" className="text-m3-error">{error}</p>
 
   if (!media) {
     return (
