@@ -28,6 +28,7 @@ export default function Browse() {
 
   useEffect(() => {
     if (!libraryId) {
+      setError(null)
       setLoading(false)
       return
     }
