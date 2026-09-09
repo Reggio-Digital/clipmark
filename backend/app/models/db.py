@@ -13,6 +13,7 @@ class User(Base):
     plex_username = Column(String, nullable=False)
     plex_email = Column(String, nullable=True)
     plex_thumb = Column(String, nullable=True)
+    plex_token = Column(String, nullable=True)
     role = Column(String, nullable=False, default="user")  # "admin" or "user"
     giphy_api_key = Column(String, nullable=True)
     enabled = Column(Boolean, nullable=False, default=True)
@@ -65,6 +66,7 @@ class GifRecord(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, nullable=True)
     media_id = Column(String, nullable=False)
+    plex_server_id = Column(String, nullable=True)
     media_title = Column(String, nullable=False)
     media_type = Column(String, nullable=True)
     show_title = Column(String, nullable=True)

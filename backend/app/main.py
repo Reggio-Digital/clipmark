@@ -3,15 +3,18 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from sqlalchemy import select, text
+from plexapi.exceptions import PlexApiException, Unauthorized, NotFound
+from requests.exceptions import RequestException
+from app.dependencies import get_current_user, get_current_plex_server, require_media_access
 from app.database import init_db, async_session
 from app.routers import setup, search, media, gifs, auth, admin, favorites
 from app.routers.shared import router as shared_router
 from app.services.worker import worker
-from app.services.cache import janitor
+from app.services.cache import janitor, get_server_cache_key
 from app.services.scheduler import scheduler, register_task
 from app.services.library_cache import library_cache
 from app.services.auth import get_user_by_session_token, maybe_rotate_session, cleanup_expired_sessions
@@ -60,6 +63,17 @@ async def _trigger_cache_refresh():
 
 app = FastAPI(title="Clipmark", lifespan=lifespan)
 
+
+@app.exception_handler(PlexApiException)
+@app.exception_handler(RequestException)
+async def plex_error_handler(request: Request, exc: Exception):
+    if isinstance(exc, Unauthorized):
+        return JSONResponse(status_code=403, content={"detail": "Plex access denied. Sign in to Plex again."})
+    if isinstance(exc, NotFound):
+        return JSONResponse(status_code=404, content={"detail": "Plex library or media not found"})
+    return JSONResponse(status_code=503, content={"detail": "Plex is unavailable. Please try again shortly."})
+
+
 PUBLIC_PATHS = {
     "/api/auth/status",
     "/api/auth/plex/initiate",
@@ -100,6 +114,7 @@ async def auth_middleware(request: Request, call_next):
 
     secure = _is_https(request)
     response = await call_next(request)
+    response.headers["Cache-Control"] = "private, no-store"
     if new_token:
         response.set_cookie(
             key="clipmark_session",
@@ -238,8 +253,35 @@ app.include_router(admin.router)
 app.include_router(favorites.router)
 app.include_router(shared_router)
 
-app.mount("/output/previews", StaticFiles(directory=str(PREVIEWS_CACHE_DIR)), name="previews")
-app.mount("/output", StaticFiles(directory=str(OUTPUT_DIR)), name="output")
+
+@app.api_route("/output/previews/{filename}", methods=["GET", "HEAD"])
+async def preview_file(filename: str, server=Depends(get_current_plex_server)):
+    parts = filename.split("_", 2)
+    if len(parts) != 3 or parts[0] != get_server_cache_key(server.machineIdentifier) or not filename.endswith(".mp4"):
+        raise HTTPException(status_code=404, detail="Preview not found")
+    media_id = parts[1]
+    await require_media_access(media_id, server)
+    path = PREVIEWS_CACHE_DIR / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Preview not found")
+    return FileResponse(path, media_type="video/mp4")
+
+
+@app.api_route("/output/{filename:path}", methods=["GET", "HEAD"])
+async def gif_file(filename: str, user=Depends(get_current_user)):
+    async with async_session() as db:
+        result = await db.execute(select(GifRecord).where(
+            GifRecord.filename == filename,
+            GifRecord.status == "complete",
+        ))
+        record = result.scalar_one_or_none()
+    if not record or (record.user_id != user.id and user.role != "admin"):
+        raise HTTPException(status_code=404, detail="GIF not found")
+    path = (OUTPUT_DIR / filename).resolve()
+    if not path.is_relative_to(OUTPUT_DIR.resolve()) or not path.is_file():
+        raise HTTPException(status_code=404, detail="GIF not found")
+    return FileResponse(path, media_type="image/gif")
+
 
 @app.get("/s/{token}")
 async def shared_gif_page(token: str, request: Request):

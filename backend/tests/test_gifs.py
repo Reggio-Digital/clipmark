@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock
 
 import app.routers.gifs as gifs_router
 from app.config import MAX_QUEUED_JOBS, MAX_QUEUED_JOBS_PER_USER
@@ -97,10 +98,11 @@ async def test_create_gif_per_user_limit(client, make_user, monkeypatch):
 async def test_create_gif_success_queues_record(client, make_user, monkeypatch):
     _, token = await make_user()
     monkeypatch.setattr(gifs_router, "load_config", lambda: AppConfig(max_gif_duration_seconds=15))
-    monkeypatch.setattr(gifs_router, "get_plex_server", lambda: object())
+    server = Mock(machineIdentifier="server-1")
+    monkeypatch.setattr(gifs_router, "get_current_plex_server", AsyncMock(return_value=server))
 
     media = MediaDetail(
-        id="plex-1",
+        id="1",
         title="Some Movie",
         type="movie",
         thumb_url="",
@@ -112,7 +114,7 @@ async def test_create_gif_success_queues_record(client, make_user, monkeypatch):
 
     resp = await client.post(
         "/api/gifs",
-        json={"media_id": "plex-1", "start_ms": 0, "end_ms": 2000},
+        json={"media_id": "1", "start_ms": 0, "end_ms": 2000},
         headers={"Cookie": f"clipmark_session={token}"},
     )
     assert resp.status_code == 200

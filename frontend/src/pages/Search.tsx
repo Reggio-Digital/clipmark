@@ -9,6 +9,7 @@ export default function Search() {
   const query = searchParams.get('q') || ''
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -16,6 +17,7 @@ export default function Search() {
   }, [])
 
   useEffect(() => {
+    setError(null)
     if (query.length < 2) {
       setResults([])
       return
@@ -23,6 +25,9 @@ export default function Search() {
     setLoading(true)
     search(query).then((r) => {
       setResults(r)
+      setLoading(false)
+    }).catch((e) => {
+      setError(e instanceof Error ? e.message : 'Search failed')
       setLoading(false)
     })
   }, [query])
@@ -60,6 +65,8 @@ export default function Search() {
       // Next page load will correct the state
     }
   }
+
+  if (error) return <p role="alert" className="text-m3-error">{error}</p>
 
   return (
     <div>

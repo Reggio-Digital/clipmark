@@ -5,6 +5,7 @@ from plexapi.myplex import MyPlexAccount, MyPlexPinLogin
 from plexapi.server import PlexServer
 from plexapi.video import Movie, Episode, Show
 from plexapi.library import MovieSection, ShowSection
+from plexapi.exceptions import Unauthorized
 from app.config import CONFIG_FILE
 from app.models.schemas import (
     AppConfig,
@@ -53,6 +54,24 @@ def get_plex_server() -> PlexServer | None:
     if not config.plex_token or not config.server_url:
         return None
     return PlexServer(config.server_url, config.plex_token)
+
+
+def get_user_plex_server(user_plex_token: str | None) -> PlexServer | None:
+    if not user_plex_token:
+        raise Unauthorized("Sign in to Plex again to access libraries")
+    config = load_config()
+    if not config.server_url or not config.server_machine_id:
+        return None
+    account = MyPlexAccount(token=user_plex_token, timeout=10)
+    for resource in account.resources():
+        if resource.provides == "server" and resource.clientIdentifier == config.server_machine_id:
+            if not resource.accessToken:
+                break
+            server = PlexServer(config.server_url, resource.accessToken, timeout=10)
+            if server.machineIdentifier != config.server_machine_id:
+                raise Unauthorized("Plex server identity does not match")
+            return server
+    raise Unauthorized("Plex server access is no longer available")
 
 
 def initiate_oauth(forward_url: str | None = None) -> tuple[str, str]:
@@ -143,15 +162,23 @@ def get_libraries(server: PlexServer) -> list[Library]:
 
 
 def get_library_items(
-    server: PlexServer, library_id: str, page: int = 1, page_size: int = 50
+    server: PlexServer, library_id: str, page: int = 1, page_size: int = 50,
+    sort: str | None = None,
 ) -> tuple[list[MediaItem], int]:
     section = server.library.sectionByID(int(library_id))
-    all_items = section.all()
-    total = len(all_items)
     start = (page - 1) * page_size
-    end = start + page_size
+    if sort:
+        plex_sort = {"alpha": "titleSort:asc", "year": "year:desc", "added": "addedAt:desc"}[sort]
+        page_items = section.all(
+            sort=plex_sort, container_start=start, container_size=page_size, maxresults=page_size,
+        )
+        total = page_items.totalSize if page_items.totalSize is not None else len(page_items)
+    else:
+        all_items = section.all()
+        total = len(all_items)
+        page_items = all_items[start:start + page_size]
     items = []
-    for item in all_items[start:end]:
+    for item in page_items:
         if isinstance(item, Movie):
             items.append(
                 MediaItem(

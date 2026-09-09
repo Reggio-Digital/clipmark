@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from app.services.plex import get_plex_server, search_media
+import asyncio
+
+from app.services.plex import search_media
 from app.models.schemas import SearchResult
-from app.dependencies import get_current_user
+from app.dependencies import get_current_plex_server
 
 router = APIRouter(prefix="/api", tags=["search"])
 
@@ -12,11 +14,11 @@ async def search(
     library_id: str | None = None,
     type: str | None = None,
     limit: int = Query(default=25, ge=1, le=100),
-    _user=Depends(get_current_user),
+    server=Depends(get_current_plex_server),
 ):
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
     if type and type not in ("movie", "show"):
         raise HTTPException(status_code=400, detail="Type must be 'movie' or 'show'")
-    return search_media(server, query, library_id, type, limit)
+    try:
+        return await asyncio.to_thread(search_media, server, query, library_id, type, limit)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Library not found")

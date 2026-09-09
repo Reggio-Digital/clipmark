@@ -34,6 +34,22 @@ Open <http://localhost:8000> and connect your Plex account.
 
 > **Note:** Plex Media Server must be reachable from the container.
 
+### Library access
+
+Each user signs in with their own Plex account. Browsing, search, media previews,
+and GIF creation use that account's access to the configured server, including
+Plex library and content restrictions. Manage access in Plex; a Clipmark admin
+role does not grant additional Plex library permissions.
+
+After upgrading from a version without per-user library access, existing users
+must sign out and sign in again. Library access is denied until they do. Plex
+must be reachable to check access, including when serving cached previews.
+Queued GIFs check the creator's access again before processing.
+Jobs queued before this upgrade or for a different Plex server must be created again.
+
+Saved favorites and completed GIFs remain in their owner's account. Public GIF
+links explicitly created with public sharing enabled remain public.
+
 ## Docker Compose
 
 ```yaml
@@ -191,7 +207,8 @@ docker build -t clipmark .
 
 ## Security Notes
 
-- Plex token stored server-side, never sent to browser
+- Plex tokens are stored server-side in `config.json` and the user records in
+  `clipmark.db`, never sent to the browser. Treat both files and their backups as secrets.
 - If exposing to the internet, use a reverse proxy with HTTPS
 
 ## License

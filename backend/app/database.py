@@ -12,9 +12,16 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        result = await conn.execute(text("PRAGMA table_info(users)"))
+        user_columns = [row[1] for row in result.fetchall()]
+        if "plex_token" not in user_columns:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN plex_token TEXT"))
+
         # Migration: add new columns to gifs if they don't exist
         result = await conn.execute(text("PRAGMA table_info(gifs)"))
         columns = [row[1] for row in result.fetchall()]
+        if "plex_server_id" not in columns:
+            await conn.execute(text("ALTER TABLE gifs ADD COLUMN plex_server_id TEXT"))
         if "custom_text" not in columns:
             await conn.execute(text("ALTER TABLE gifs ADD COLUMN custom_text TEXT"))
         if "media_type" not in columns:

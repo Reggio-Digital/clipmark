@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException, Query, Response, Depends
 from pathlib import Path
 import tempfile
 from app.services.plex import (
-    get_plex_server,
+    get_libraries,
+    get_library_items,
     get_show_detail,
     get_show_seasons,
     get_show_episodes,
@@ -27,8 +28,7 @@ from app.models.schemas import (
     PreviewResponse,
 )
 from app.config import MAX_PREVIEW_DURATION_SECONDS
-from app.dependencies import get_current_user
-from app.services.library_cache import library_cache
+from app.dependencies import get_current_plex_server, require_media_access
 import httpx
 import json
 
@@ -36,11 +36,8 @@ router = APIRouter(prefix="/api", tags=["media"])
 
 
 @router.get("/libraries", response_model=list[Library])
-async def list_libraries(_user=Depends(get_current_user)):
-    cached = library_cache.get_libraries()
-    if cached is None:
-        raise HTTPException(status_code=503, detail="Library cache is loading, please try again shortly")
-    return cached
+async def list_libraries(server=Depends(get_current_plex_server)):
+    return await asyncio.to_thread(get_libraries, server)
 
 
 @router.get("/libraries/{library_id}/items", response_model=PaginatedResponse[MediaItem])
@@ -49,42 +46,28 @@ async def list_library_items(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     sort: str = Query(default="added", pattern="^(added|alpha|year)$"),
-    _user=Depends(get_current_user),
+    server=Depends(get_current_plex_server),
 ):
-    cached = library_cache.get_library_items(library_id, page, page_size, sort)
-    if cached is None:
-        raise HTTPException(status_code=503, detail="Library cache is loading, please try again shortly")
-    items, total = cached
+    try:
+        items, total = await asyncio.to_thread(get_library_items, server, library_id, page, page_size, sort)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Library not found")
     return PaginatedResponse(items=items, page=page, page_size=page_size, total_items=total)
 
 
 @router.get("/shows/{show_id}", response_model=ShowDetail)
-async def get_show(show_id: str, _user=Depends(get_current_user)):
-    cached = library_cache.get_show_detail(show_id)
-    if cached:
-        return cached
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
+async def get_show(show_id: str, server=Depends(get_current_plex_server)):
     try:
         result = await asyncio.to_thread(get_show_detail, server, show_id)
-        library_cache.set_show_detail(show_id, result)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/shows/{show_id}/seasons", response_model=list[Season])
-async def list_seasons(show_id: str, _user=Depends(get_current_user)):
-    cached = library_cache.get_seasons(show_id)
-    if cached is not None:
-        return cached
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
+async def list_seasons(show_id: str, server=Depends(get_current_plex_server)):
     try:
         result = await asyncio.to_thread(get_show_seasons, server, show_id)
-        library_cache.set_seasons(show_id, result)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -96,24 +79,12 @@ async def list_episodes(
     season: int = Query(...),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-    _user=Depends(get_current_user),
+    server=Depends(get_current_plex_server),
 ):
-    cached = library_cache.get_episodes(show_id, season)
-    if cached is not None:
-        all_items, total = cached
-        start = (page - 1) * page_size
-        end = start + page_size
-        return PaginatedResponse(items=all_items[start:end], page=page, page_size=page_size, total_items=total)
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
-        items, total = await asyncio.to_thread(get_show_episodes, server, show_id, season, 1, 999999)
-        library_cache.set_episodes(show_id, season, items, total)
-        start = (page - 1) * page_size
-        end = start + page_size
+        items, total = await asyncio.to_thread(get_show_episodes, server, show_id, season, page, page_size)
         return PaginatedResponse(
-            items=items[start:end],
+            items=items,
             page=page,
             page_size=page_size,
             total_items=total,
@@ -123,14 +94,11 @@ async def list_episodes(
 
 
 @router.get("/media/{media_id}", response_model=MediaDetail)
-async def get_media(media_id: str, _user=Depends(get_current_user)):
-    cache_path = get_media_detail_cache_path(media_id)
+async def get_media(media_id: str, server=Depends(require_media_access)):
+    cache_path = get_media_detail_cache_path(media_id, server_id=server.machineIdentifier)
     if cache_path.exists():
         return MediaDetail(**json.loads(cache_path.read_text()))
 
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
         result = get_media_detail(server, media_id)
         cache_path.write_text(result.model_dump_json())
@@ -140,14 +108,11 @@ async def get_media(media_id: str, _user=Depends(get_current_user)):
 
 
 @router.get("/media/{media_id}/subtitles/{index}", response_model=list[SubtitleLine])
-async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_user)):
-    cache_path = get_subtitle_cache_path(media_id, index)
+async def get_subtitles(media_id: str, index: int, server=Depends(require_media_access)):
+    cache_path = get_subtitle_cache_path(media_id, index, server_id=server.machineIdentifier)
     if cache_path.exists():
         return json.loads(cache_path.read_text())
 
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
     try:
         media = get_media_detail(server, media_id)
         track = next((t for t in media.subtitle_tracks if t.index == index), None)
@@ -192,18 +157,15 @@ async def get_subtitles(media_id: str, index: int, _user=Depends(get_current_use
 
 
 @router.get("/media/{media_id}/thumbnail")
-async def get_thumbnail(media_id: str, _user=Depends(get_current_user)):
+async def get_thumbnail(media_id: str, server=Depends(require_media_access)):
     # Check disk cache first
-    cache_path = get_thumbnail_cache_path(media_id)
+    cache_path = get_thumbnail_cache_path(media_id, server_id=server.machineIdentifier)
     if cache_path.exists():
         return Response(
             content=cache_path.read_bytes(),
             media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=86400"},
+            headers={"Cache-Control": "private, no-store"},
         )
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
     thumb_url = get_thumbnail_url(server, media_id)
     if not thumb_url:
         raise HTTPException(status_code=404, detail="Thumbnail not found")
@@ -216,7 +178,7 @@ async def get_thumbnail(media_id: str, _user=Depends(get_current_user)):
         return Response(
             content=response.content,
             media_type=response.headers.get("content-type", "image/jpeg"),
-            headers={"Cache-Control": "public, max-age=86400"},
+            headers={"Cache-Control": "private, no-store"},
         )
 
 
@@ -225,15 +187,15 @@ async def get_frame(
     media_id: str,
     ts: int = Query(..., description="Timestamp in milliseconds"),
     width: int = Query(default=320, ge=100, le=720),
-    _user=Depends(get_current_user),
+    server=Depends(require_media_access),
 ):
-    cache_path = get_frame_cache_path(media_id, ts, width)
+    cache_path = get_frame_cache_path(media_id, ts, width, server_id=server.machineIdentifier)
     if cache_path.exists():
         return Response(
             content=cache_path.read_bytes(),
             media_type="image/jpeg",
         )
-    frame_data = await generate_frame(media_id, ts, width)
+    frame_data = await generate_frame(server, media_id, ts, width)
     if not frame_data:
         raise HTTPException(status_code=500, detail="Failed to generate frame")
     cache_path.write_bytes(frame_data)
@@ -241,7 +203,7 @@ async def get_frame(
 
 
 @router.post("/media/{media_id}/preview", response_model=PreviewResponse)
-async def create_preview_endpoint(media_id: str, request: PreviewRequest, _user=Depends(get_current_user)):
+async def create_preview_endpoint(media_id: str, request: PreviewRequest, server=Depends(require_media_access)):
     duration_ms = request.end_ms - request.start_ms
     max_duration_ms = MAX_PREVIEW_DURATION_SECONDS * 1000
     if duration_ms > max_duration_ms:
@@ -259,9 +221,11 @@ async def create_preview_endpoint(media_id: str, request: PreviewRequest, _user=
         request.custom_text,
         request.text_position,
         request.text_size,
+        server_id=server.machineIdentifier,
     )
     if not cache_path.exists():
         success = await generate_preview(
+            server,
             media_id,
             request.start_ms,
             request.end_ms,

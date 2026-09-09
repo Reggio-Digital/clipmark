@@ -13,16 +13,18 @@ export default function ShowEpisodes() {
   const [totalEpisodes, setTotalEpisodes] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isFavorited, setIsFavorited] = useState(false)
 
   useEffect(() => {
     if (!showId) return
+    setError(null)
     Promise.all([getShow(showId), getSeasons(showId), getFavoriteIds()]).then(([showData, seasonsData, favIds]) => {
       setShow(showData)
       setSeasons(seasonsData)
       setIsFavorited(favIds.includes(showId))
       setLoading(false)
-    })
+    }).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load show'))
   }, [showId])
 
   const handleToggleFavorite = async () => {
@@ -50,12 +52,18 @@ export default function ShowEpisodes() {
   useEffect(() => {
     if (!showId || selectedSeason === null) return
     setLoading(true)
+    setError(null)
     getEpisodes(showId, selectedSeason, page, 50).then((response) => {
       setEpisodes(response.items)
       setTotalEpisodes(response.total_items)
       setLoading(false)
+    }).catch((e) => {
+      setError(e instanceof Error ? e.message : 'Failed to load episodes')
+      setLoading(false)
     })
   }, [showId, selectedSeason, page])
+
+  if (error) return <p role="alert" className="text-m3-error">{error}</p>
 
   if (!show) {
     return (

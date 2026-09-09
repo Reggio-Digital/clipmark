@@ -190,6 +190,7 @@ async def plex_login(
             plex_username=account_info["username"],
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
+            plex_token=plex_token,
         )
     else:
         user = await create_user(
@@ -199,6 +200,7 @@ async def plex_login(
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
             role="user",
+            plex_token=plex_token,
         )
 
     token = await create_session_for_user(db, user.id)
@@ -255,6 +257,7 @@ async def setup_select_server(
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
             role="admin",
+            plex_token=plex_token,
         )
 
     token = await create_session_for_user(db, user.id)

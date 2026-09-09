@@ -2,7 +2,8 @@ import asyncio
 import shutil
 from pathlib import Path
 from app.config import OUTPUT_DIR, WORK_DIR, FFMPEG_TIMEOUT_SECONDS
-from app.services.plex import get_plex_server, get_media_stream_url, get_subtitle_stream_url, get_media_detail, load_config
+from plexapi.server import PlexServer
+from app.services.plex import get_media_stream_url, get_subtitle_stream_url, get_media_detail, load_config
 from app.services.subtitles import download_subtitle, extract_embedded_subtitle, offset_srt_content, srt_to_ass
 
 
@@ -115,6 +116,7 @@ def get_subtitle_style(width: int, position: str | None = None, size: str | None
 
 
 async def generate_gif(
+    server: PlexServer,
     gif_id: str,
     user_id: str,
     media_id: str,
@@ -135,9 +137,6 @@ async def generate_gif(
     fps = min(fps, config.max_fps)
     work_dir = WORK_DIR / gif_id
     work_dir.mkdir(parents=True, exist_ok=True)
-    server = get_plex_server()
-    if not server:
-        raise ValueError("Plex server not configured")
     media_url = get_media_stream_url(server, media_id)
     if not media_url:
         raise ValueError("Could not get media stream URL")
@@ -286,11 +285,8 @@ async def generate_gif(
     return output_filename, size_bytes
 
 
-async def generate_frame(media_id: str, ts_ms: int, width: int = 320) -> bytes | None:
+async def generate_frame(server: PlexServer, media_id: str, ts_ms: int, width: int = 320) -> bytes | None:
     """Generate a single frame from media at the given timestamp."""
-    server = get_plex_server()
-    if not server:
-        return None
     media_url = get_media_stream_url(server, media_id)
     if not media_url:
         return None
@@ -323,6 +319,7 @@ async def generate_frame(media_id: str, ts_ms: int, width: int = 320) -> bytes |
 
 
 async def generate_preview(
+    server: PlexServer,
     media_id: str,
     start_ms: int,
     end_ms: int,
@@ -333,9 +330,6 @@ async def generate_preview(
     text_size: str | None = None,
 ) -> bool:
     """Generate an MP4 preview clip with optional subtitles/text."""
-    server = get_plex_server()
-    if not server:
-        return False
     media_url = get_media_stream_url(server, media_id)
     if not media_url:
         return False

@@ -3,7 +3,10 @@ import logging
 from datetime import datetime
 from sqlalchemy import select, update
 from app.database import async_session
-from app.models.db import GifRecord
+from plexapi.exceptions import PlexApiException
+from requests.exceptions import RequestException
+from app.models.db import GifRecord, User
+from app.services.plex import get_user_plex_server
 from app.services.gif import generate_gif
 from app.config import MAX_CONCURRENT_JOBS
 
@@ -75,6 +78,16 @@ class GifWorker:
                     return
 
                 try:
+                    user = await session.get(User, job.user_id) if job.user_id else None
+                    if not user or not user.enabled:
+                        raise ValueError("GIF owner no longer has access")
+                    server = await asyncio.to_thread(get_user_plex_server, user.plex_token)
+                    if not server:
+                        raise ValueError("Plex server not configured")
+                    if job.plex_server_id != server.machineIdentifier:
+                        raise ValueError("The GIF's Plex server has changed. Create the GIF again.")
+                    await asyncio.to_thread(server.fetchItem, int(job.media_id))
+
                     async def update_progress(progress: int):
                         async with async_session() as s:
                             await s.execute(
@@ -85,6 +98,7 @@ class GifWorker:
                             await s.commit()
 
                     filename, size_bytes = await generate_gif(
+                        server=server,
                         gif_id=gif_id,
                         user_id=job.user_id,
                         media_id=job.media_id,
@@ -104,6 +118,10 @@ class GifWorker:
                     job.size_bytes = size_bytes
                     job.progress = 100
                     job.completed_at = datetime.utcnow()
+                except (PlexApiException, RequestException):
+                    job.status = "failed"
+                    job.error = "Plex media is unavailable or access has been revoked. Sign in to Plex again."
+                    logger.warning("GIF %s could not access Plex media", gif_id)
                 except TimeoutError as e:
                     job.status = "failed"
                     job.error = str(e)

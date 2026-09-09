@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import time
 from pathlib import Path
 from app.config import (
@@ -70,8 +71,12 @@ class CacheJanitor:
                         pass
 
 
-def get_frame_cache_path(media_id: str, ts_ms: int, width: int) -> Path:
-    return FRAMES_CACHE_DIR / f"{media_id}_{ts_ms}_{width}.jpg"
+def get_server_cache_key(server_id: str) -> str:
+    return hashlib.sha256(server_id.encode()).hexdigest()[:16]
+
+
+def get_frame_cache_path(media_id: str, ts_ms: int, width: int, *, server_id: str) -> Path:
+    return FRAMES_CACHE_DIR / f"{get_server_cache_key(server_id)}_{media_id}_{ts_ms}_{width}.jpg"
 
 
 def get_preview_cache_path(
@@ -82,13 +87,14 @@ def get_preview_cache_path(
     custom_text: str | None = None,
     text_position: str | None = None,
     text_size: str | None = None,
+    *,
+    server_id: str,
 ) -> Path:
     # Include text options in cache key
     text_key = ""
     if subtitle_index is not None:
         text_key = f"_sub{subtitle_index}"
     elif custom_text:
-        import hashlib
         text_hash = hashlib.md5(custom_text.encode()).hexdigest()[:8]
         text_key = f"_txt{text_hash}"
     # Add position and size to key if not default
@@ -96,19 +102,19 @@ def get_preview_cache_path(
         text_key += f"_pos{text_position}"
     if text_size and text_size != "medium":
         text_key += f"_sz{text_size}"
-    return PREVIEWS_CACHE_DIR / f"{media_id}_{start_ms}_{end_ms}{text_key}.mp4"
+    return PREVIEWS_CACHE_DIR / f"{get_server_cache_key(server_id)}_{media_id}_{start_ms}_{end_ms}{text_key}.mp4"
 
 
-def get_thumbnail_cache_path(media_id: str) -> Path:
-    return THUMBNAILS_CACHE_DIR / f"{media_id}.jpg"
+def get_thumbnail_cache_path(media_id: str, *, server_id: str) -> Path:
+    return THUMBNAILS_CACHE_DIR / f"{get_server_cache_key(server_id)}_{media_id}.jpg"
 
 
-def get_subtitle_cache_path(media_id: str, index: int) -> Path:
-    return SUBTITLES_CACHE_DIR / f"{media_id}_{index}.json"
+def get_subtitle_cache_path(media_id: str, index: int, *, server_id: str) -> Path:
+    return SUBTITLES_CACHE_DIR / f"{get_server_cache_key(server_id)}_{media_id}_{index}.json"
 
 
-def get_media_detail_cache_path(media_id: str) -> Path:
-    return SUBTITLES_CACHE_DIR / f"detail_{media_id}.json"
+def get_media_detail_cache_path(media_id: str, *, server_id: str) -> Path:
+    return SUBTITLES_CACHE_DIR / f"{get_server_cache_key(server_id)}_detail_{media_id}.json"
 
 
 janitor = CacheJanitor()

@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, async_session
 from app.models.db import GifRecord
 from app.models.schemas import Gif, GifCreate, PaginatedResponse, GiphyUploadResponse, ShareResponse, PublicGif
-from app.services.plex import get_plex_server, get_media_detail, load_config
+from app.services.plex import get_media_detail, load_config
 from app.services.giphy import upload_gif_to_giphy, GiphyError
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_plex_server, require_media_access
 from app.config import (
     MAX_QUEUED_JOBS,
     MAX_QUEUED_JOBS_PER_USER,
@@ -96,9 +96,8 @@ async def create_gif(
             status_code=429,
             detail=f"You have {user_queued} pending jobs. Maximum {MAX_QUEUED_JOBS_PER_USER} per user.",
         )
-    server = get_plex_server()
-    if not server:
-        raise HTTPException(status_code=503, detail="Plex server not configured")
+    server = await get_current_plex_server(user)
+    await require_media_access(request.media_id, server)
     try:
         media = get_media_detail(server, request.media_id)
     except ValueError as e:
@@ -120,6 +119,7 @@ async def create_gif(
         id=gif_id,
         user_id=user.id,
         media_id=request.media_id,
+        plex_server_id=server.machineIdentifier,
         media_title=media.title,
         media_type=media.type,
         show_title=media.show_title,
