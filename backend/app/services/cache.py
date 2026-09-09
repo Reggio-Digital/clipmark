@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import re
 import time
 from pathlib import Path
 from app.config import (
@@ -32,6 +33,7 @@ class CacheJanitor:
 
     async def _cleanup(self):
         now = time.time()
+        await self.cleanup_legacy_files()
         await self._cleanup_directory(
             FRAMES_CACHE_DIR,
             FRAME_CACHE_TTL_MINUTES * 60,
@@ -43,6 +45,23 @@ class CacheJanitor:
             now,
         )
         await self._cleanup_workspaces(now)
+
+    async def cleanup_legacy_files(self):
+        def cleanup():
+            patterns = (
+                (THUMBNAILS_CACHE_DIR, r"[0-9]+\.jpg"),
+                (SUBTITLES_CACHE_DIR, r"(?:detail_[0-9]+|[0-9]+_[0-9]+)\.json"),
+            )
+            for directory, pattern in patterns:
+                if not directory.exists():
+                    continue
+                for path in directory.iterdir():
+                    if path.is_file() and re.fullmatch(pattern, path.name):
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
+        await asyncio.to_thread(cleanup)
 
     async def _cleanup_directory(self, directory: Path, ttl_seconds: float, now: float):
         if not directory.exists():

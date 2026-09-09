@@ -16,6 +16,10 @@ async def init_db():
         user_columns = [row[1] for row in result.fetchall()]
         if "plex_token" not in user_columns:
             await conn.execute(text("ALTER TABLE users ADD COLUMN plex_token TEXT"))
+        if "plex_server_id" not in user_columns:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN plex_server_id TEXT"))
+            # Older builds stored account tokens. Require login to obtain resource tokens.
+            await conn.execute(text("UPDATE users SET plex_token = NULL"))
 
         # Migration: add new columns to gifs if they don't exist
         result = await conn.execute(text("PRAGMA table_info(gifs)"))

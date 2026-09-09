@@ -15,7 +15,7 @@ from tests.test_gifs import _insert_gif
 @pytest.mark.parametrize("case", ["revoked", "private", "disabled", "deleted", "legacy", "offline", "other_server", "legacy_job"])
 async def test_worker_rechecks_access_before_generating(client, make_user, plex_api, monkeypatch, case):
     import app.services.worker as worker_module
-    user, _ = await make_user(plex_token=None if case == "legacy" else "oauth-guest")
+    user, _ = await make_user(plex_token=None if case == "legacy" else "server-guest")
     server_id = None if case == "legacy_job" else "server-2" if case == "other_server" else "server-1"
     gif_id = await _insert_gif(user.id, status="queued", plex_server_id=server_id, media_id="20" if case == "private" else "10")
     if case == "revoked":
@@ -43,7 +43,7 @@ async def test_worker_rechecks_access_before_generating(client, make_user, plex_
 
 
 async def test_worker_and_all_generators_use_creator_stream_token(client, make_user, plex_api, monkeypatch, tmp_path):
-    user, _ = await make_user(plex_token="oauth-guest")
+    user, _ = await make_user(plex_token="server-guest")
     gif_id = await _insert_gif(user.id, status="queued", plex_server_id="server-1", media_id="10")
     config = plex.load_config()
     config.gifsicle_enabled = False
@@ -68,7 +68,7 @@ async def test_worker_and_all_generators_use_creator_stream_token(client, make_u
         record = await db.get(GifRecord, gif_id)
         assert record.status == "complete", record.error
         assert (OUTPUT_DIR / record.filename).read_bytes() == b"GIF output"
-    server = plex.get_user_plex_server("oauth-guest")
+    server = plex.get_user_plex_server("server-guest", "server-1")
     assert await gif.generate_frame(server, "10", 0) == b"encoded frame"
     assert await gif.generate_preview(server, "10", 0, 2000, tmp_path / "preview.mp4")
     assert len(commands) == 4

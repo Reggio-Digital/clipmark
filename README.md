@@ -42,8 +42,16 @@ Plex library and content restrictions. Manage access in Plex; a Clipmark admin
 role does not grant additional Plex library permissions.
 
 After upgrading from a version without per-user library access, existing users
-must sign out and sign in again. Library access is denied until they do. Plex
-must be reachable to check access, including when serving cached previews.
+must sign out and sign in again. Library access is denied until they do. Upgrading
+from a build that stored account tokens also clears those user tokens and requires
+sign-in again. Each user's server connection and library list are reused for up to
+30 seconds; media and preview access are checked against Plex on every request.
+Plex Media Server must be reachable for these checks; plex.tv is needed at login.
+Changing the configured server requires users to sign in again for that server.
+The owner-wide background library scan has been removed. Legacy thumbnail and
+subtitle/detail cache files are deleted automatically at startup and during cache
+cleanup; namespaced files are preserved, and expired frames/previews use their
+existing cleanup schedule.
 Queued GIFs check the creator's access again before processing.
 Jobs queued before this upgrade or for a different Plex server must be created again.
 
@@ -207,8 +215,11 @@ docker build -t clipmark .
 
 ## Security Notes
 
-- Plex tokens are stored server-side in `config.json` and the user records in
-  `clipmark.db`, never sent to the browser. Treat both files and their backups as secrets.
+- The owner's Plex account token remains server-side in `config.json`. At login,
+  Clipmark obtains the selected server's `resource.accessToken` and stores it with
+  the server ID in `clipmark.db`. Tokens are never included in browser responses.
+  Treat both files and their backups as secrets; older backups may still contain
+  account tokens.
 - If exposing to the internet, use a reverse proxy with HTTPS
 
 ## License

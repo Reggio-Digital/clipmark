@@ -45,6 +45,8 @@ async def client(monkeypatch):
         await conn.run_sync(Base.metadata.drop_all)
 
     from app.main import app
+    from app.services.library_cache import library_cache
+    library_cache.clear()
 
     async with LifespanManager(app):
         transport = httpx.ASGITransport(app=app)
@@ -60,7 +62,7 @@ async def make_user():
     Send the token as the ``clipmark_session`` cookie to authenticate.
     """
 
-    async def _make(role: str = "user", enabled: bool = True, plex_token: str | None = None):
+    async def _make(role: str = "user", enabled: bool = True, plex_token: str | None = None, plex_server_id: str | None = "server-1"):
         now = datetime.utcnow()
         user = User(
             id=str(uuid.uuid4()),
@@ -70,6 +72,7 @@ async def make_user():
             role=role,
             enabled=enabled,
             plex_token=plex_token,
+            plex_server_id=plex_server_id,
             created_at=now,
             last_login=now,
         )
@@ -129,6 +132,8 @@ def plex_api(monkeypatch, tmp_path):
         "32": '<Video type="episode" ratingKey="32" key="/library/metadata/32" librarySectionID="3" title="Pilot" index="1" parentIndex="1" grandparentTitle="A show" duration="600000"/>',
         "40": '<Directory type="show" ratingKey="40" key="/library/metadata/40/children" librarySectionID="2" title="Private show" year="2024"/>',
     })
+    state["movies"] = movies
+    state["items"] = items
 
     def request(_session, method, url, **kwargs):
         parsed = urlsplit(url)

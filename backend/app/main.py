@@ -16,7 +16,6 @@ from app.routers.shared import router as shared_router
 from app.services.worker import worker
 from app.services.cache import janitor, get_server_cache_key
 from app.services.scheduler import scheduler, register_task
-from app.services.library_cache import library_cache
 from app.services.auth import get_user_by_session_token, maybe_rotate_session, cleanup_expired_sessions
 from app.services.plex import get_plex_server, load_config
 from app.routers.auth import _is_https
@@ -31,7 +30,6 @@ async def _session_cleanup_action() -> None:
         await cleanup_expired_sessions(db)
 
 
-register_task("library_cache_refresh", library_cache.refresh)
 register_task("cache_cleanup", janitor._cleanup)
 register_task("session_cleanup", _session_cleanup_action)
 
@@ -39,26 +37,12 @@ register_task("session_cleanup", _session_cleanup_action)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await janitor.cleanup_legacy_files()
     await worker.start()
     await scheduler.start()
-    await _trigger_cache_refresh()
     yield
     await worker.stop()
     await scheduler.stop()
-
-
-async def _trigger_cache_refresh():
-    """Force library cache refresh on startup so the fallback path is never needed."""
-    from datetime import datetime
-    from sqlalchemy import update
-    from app.models.db import ScheduledTask
-    async with async_session() as db:
-        await db.execute(
-            update(ScheduledTask)
-            .where(ScheduledTask.id == "library_cache_refresh")
-            .values(next_run_at=datetime.utcnow())
-        )
-        await db.commit()
 
 
 app = FastAPI(title="Clipmark", lifespan=lifespan)

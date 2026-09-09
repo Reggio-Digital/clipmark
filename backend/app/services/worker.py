@@ -81,7 +81,7 @@ class GifWorker:
                     user = await session.get(User, job.user_id) if job.user_id else None
                     if not user or not user.enabled:
                         raise ValueError("GIF owner no longer has access")
-                    server = await asyncio.to_thread(get_user_plex_server, user.plex_token)
+                    server = await asyncio.to_thread(get_user_plex_server, user.plex_token, user.plex_server_id)
                     if not server:
                         raise ValueError("Plex server not configured")
                     if job.plex_server_id != server.machineIdentifier:

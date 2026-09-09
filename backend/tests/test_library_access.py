@@ -1,4 +1,3 @@
-from datetime import datetime
 import asyncio
 from unittest.mock import AsyncMock
 
@@ -8,31 +7,27 @@ from sqlalchemy import select, func
 from app.config import OUTPUT_DIR
 from app.database import async_session
 from app.models.db import GifRecord
-from app.models.schemas import Library, ShowDetail, Season, MediaItem, MediaDetail
+from app.models.schemas import MediaDetail
 from app.services.cache import (
     get_media_detail_cache_path, get_thumbnail_cache_path, get_subtitle_cache_path,
     get_frame_cache_path, get_preview_cache_path, get_server_cache_key,
 )
-from app.services.library_cache import library_cache
 from tests.test_gifs import _insert_gif
 
 
-async def test_legacy_session_cannot_read_owner_library_cache(client, make_user, monkeypatch):
+async def test_legacy_session_cannot_read_owner_library_cache(client, make_user, plex_api):
+    _, owner_token = await make_user(plex_token="server-owner")
+    owner_response = await client.get("/api/libraries", headers={"Cookie": f"clipmark_session={owner_token}"})
+    assert "Home Videos" in owner_response.text
     _, token = await make_user()
-    monkeypatch.setattr(library_cache, "_last_refreshed", datetime.utcnow())
-    monkeypatch.setattr(library_cache, "_libraries", [
-        Library(id="2", title="Home Videos", type="movie"),
-    ])
-
     response = await client.get("/api/libraries", headers={"Cookie": f"clipmark_session={token}"})
-
     assert response.status_code == 403
     assert "Home Videos" not in response.text
 
 
 @pytest.mark.parametrize("role", ["user", "admin"])
 async def test_library_access_follows_plex_not_clipmark_role(client, make_user, plex_api, role):
-    _, token = await make_user(role=role, plex_token="oauth-guest")
+    _, token = await make_user(role=role, plex_token="server-guest")
     response = await client.get("/api/libraries", headers={"Cookie": f"clipmark_session={token}"})
     assert response.status_code == 200
     assert [library["id"] for library in response.json()] == ["1", "3"]
@@ -41,7 +36,7 @@ async def test_library_access_follows_plex_not_clipmark_role(client, make_user, 
 
 
 async def test_owner_guest_and_empty_access_stay_separate(client, make_user, plex_api):
-    sessions = [await make_user(plex_token=f"oauth-{name}") for name in ("owner", "guest", "empty")]
+    sessions = [await make_user(plex_token=f"server-{name}") for name in ("owner", "guest", "empty")]
     responses = await asyncio.gather(*[
         client.get("/api/libraries", headers={"Cookie": f"clipmark_session={token}"})
         for _, token in sessions
@@ -55,13 +50,11 @@ async def test_owner_guest_and_empty_access_stay_separate(client, make_user, ple
     "/api/libraries/2/items", "/api/search?query=Private&library_id=2",
     "/api/shows/40", "/api/shows/40/seasons", "/api/shows/40/episodes?season=1",
 ])
-async def test_private_library_and_show_urls_are_denied(client, make_user, plex_api, monkeypatch, path):
-    _, token = await make_user(plex_token="oauth-guest")
-    monkeypatch.setattr(library_cache, "_show_details", {
-        "40": ShowDetail(id="40", title="Private show", thumb_url="", year=2024, season_count=1),
-    })
-    monkeypatch.setattr(library_cache, "_seasons", {"40": [Season(index=1, title="Private season", episode_count=1)]})
-    monkeypatch.setattr(library_cache, "_episodes", {"40:1": ([MediaItem(id="20", title="Private episode", type="episode", thumb_url="")], 1)})
+async def test_private_library_and_show_urls_are_denied(client, make_user, plex_api, path):
+    _, token = await make_user(plex_token="server-guest")
+    _, owner_token = await make_user(plex_token="server-owner")
+    owner_response = await client.get("/api/libraries", headers={"Cookie": f"clipmark_session={owner_token}"})
+    assert "Home Videos" in owner_response.text
     response = await client.get(path, headers={"Cookie": f"clipmark_session={token}"})
     assert response.status_code == 404
     assert "Private" not in response.text
@@ -74,7 +67,7 @@ async def test_private_library_and_show_urls_are_denied(client, make_user, plex_
     ("/api/shows/30/episodes?season=1", ["32"]),
 ])
 async def test_permitted_browse_search_and_episodes(client, make_user, plex_api, path, ids):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     response = await client.get(path, headers={"Cookie": f"clipmark_session={token}"})
     assert response.status_code == 200, response.text
     body = response.json()
@@ -83,7 +76,7 @@ async def test_permitted_browse_search_and_episodes(client, make_user, plex_api,
 
 
 async def test_content_restrictions_filter_counts_and_children(client, make_user, plex_api):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     headers = {"Cookie": f"clipmark_session={token}"}
     plex_api["hidden"] = {"10", "32"}
     response = await client.get("/api/libraries/1/items", headers=headers)
@@ -109,7 +102,7 @@ async def test_content_restrictions_filter_counts_and_children(client, make_user
 ])
 async def test_private_media_denied_before_cache_or_generation(client, make_user, plex_api, monkeypatch, warm, method, path):
     import app.routers.media as media_router
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     paths = [get_media_detail_cache_path("20", server_id="server-1"), get_thumbnail_cache_path("20", server_id="server-1"),
              get_subtitle_cache_path("20", 1, server_id="server-1"), get_frame_cache_path("20", 0, 320, server_id="server-1"),
              get_preview_cache_path("20", 0, 2000, server_id="server-1")]
@@ -129,7 +122,7 @@ async def test_private_media_denied_before_cache_or_generation(client, make_user
 
 
 async def test_revocation_blocks_warm_media_and_preview_files(client, make_user, plex_api):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     headers = {"Cookie": f"clipmark_session={token}"}
     get_thumbnail_cache_path("10", server_id="server-1").write_bytes(b"image")
     get_preview_cache_path("10", 0, 2000, server_id="server-1").write_bytes(b"preview")
@@ -140,13 +133,13 @@ async def test_revocation_blocks_warm_media_and_preview_files(client, make_user,
         assert (await client.get(path, headers=headers)).status_code == 404
 
 
-@pytest.mark.parametrize("case,status", [("revoked", 403), ("offline", 503), ("resource_token", 403), ("machine_id", 403)])
+@pytest.mark.parametrize("case,status", [("revoked", 403), ("offline", 503), ("machine_id", 403)])
 async def test_unavailable_access_fails_closed_without_upstream_details(client, make_user, plex_api, case, status):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     if case == "revoked":
         plex_api[case].add("guest")
     else:
-        plex_api[case] = {"offline": True, "resource_token": False, "machine_id": "other-server"}[case]
+        plex_api[case] = {"offline": True, "machine_id": "other-server"}[case]
     response = await client.get("/api/libraries", headers={"Cookie": f"clipmark_session={token}"})
     assert response.status_code == status
     assert "private upstream" not in response.text
@@ -155,7 +148,7 @@ async def test_unavailable_access_fails_closed_without_upstream_details(client, 
 
 
 async def test_gif_creation_cannot_queue_private_media(client, make_user, plex_api):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     response = await client.post("/api/gifs", json={"media_id": "20", "start_ms": 0, "end_ms": 2000}, headers={"Cookie": f"clipmark_session={token}"})
     assert response.status_code == 404
     async with async_session() as db:
@@ -163,7 +156,7 @@ async def test_gif_creation_cannot_queue_private_media(client, make_user, plex_a
 
 
 async def test_permitted_media_detail_and_gif_creation(client, make_user, plex_api):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     headers = {"Cookie": f"clipmark_session={token}"}
     response = await client.get("/api/media/11", headers=headers)
     assert response.status_code == 200, response.text
@@ -192,7 +185,7 @@ async def test_direct_gif_file_follows_existing_ownership_rules(client, make_use
 
 
 async def test_other_server_and_legacy_caches_are_not_served(client, make_user, plex_api):
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     headers = {"Cookie": f"clipmark_session={token}"}
     old_detail = MediaDetail(id="10", title="Private old-server movie", type="movie", thumb_url="", duration_ms=1000, subtitle_tracks=[])
     get_media_detail_cache_path("10", server_id="server-1").unlink(missing_ok=True)
@@ -210,7 +203,7 @@ async def test_other_server_and_legacy_caches_are_not_served(client, make_user, 
 
 async def test_preview_creation_and_range_reads_check_access(client, make_user, plex_api, monkeypatch):
     from app.services import gif
-    _, token = await make_user(plex_token="oauth-guest")
+    _, token = await make_user(plex_token="server-guest")
     headers = {"Cookie": f"clipmark_session={token}"}
     preview_path = get_preview_cache_path("11", 0, 2000, server_id="server-1")
     preview_path.unlink(missing_ok=True)

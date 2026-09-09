@@ -25,7 +25,7 @@ from app.services.plex import (
     check_oauth,
     get_plex_account_info,
     get_available_servers,
-    user_has_server_access,
+    get_server_access_token,
     load_config,
     save_config,
     connect_to_server,
@@ -175,11 +175,7 @@ async def plex_login(
     if not config.server_machine_id:
         raise HTTPException(status_code=500, detail="Server not configured. Contact admin.")
 
-    if not user_has_server_access(plex_token, config.server_machine_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Your Plex account does not have access to this server.",
-        )
+    server_token = await asyncio.to_thread(get_server_access_token, plex_token, config.server_machine_id)
 
     user = await get_user_by_plex_id(db, plex_id)
     if user:
@@ -190,7 +186,8 @@ async def plex_login(
             plex_username=account_info["username"],
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
-            plex_token=plex_token,
+            plex_token=server_token,
+            plex_server_id=config.server_machine_id,
         )
     else:
         user = await create_user(
@@ -200,7 +197,8 @@ async def plex_login(
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
             role="user",
-            plex_token=plex_token,
+            plex_token=server_token,
+            plex_server_id=config.server_machine_id,
         )
 
     token = await create_session_for_user(db, user.id)
@@ -243,6 +241,7 @@ async def setup_select_server(
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
+        server_token = await asyncio.to_thread(get_server_access_token, plex_token, request.server_id)
         config = load_config()
         config.plex_token = plex_token
         config.server_url = server_url
@@ -257,7 +256,8 @@ async def setup_select_server(
             plex_email=account_info["email"],
             plex_thumb=account_info["thumb"],
             role="admin",
-            plex_token=plex_token,
+            plex_token=server_token,
+            plex_server_id=request.server_id,
         )
 
     token = await create_session_for_user(db, user.id)

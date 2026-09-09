@@ -56,21 +56,27 @@ def get_plex_server() -> PlexServer | None:
     return PlexServer(config.server_url, config.plex_token)
 
 
-def get_user_plex_server(user_plex_token: str | None) -> PlexServer | None:
-    if not user_plex_token:
+def get_user_plex_server(user_plex_token: str | None, server_id: str | None) -> PlexServer | None:
+    if not user_plex_token or not server_id:
         raise Unauthorized("Sign in to Plex again to access libraries")
     config = load_config()
     if not config.server_url or not config.server_machine_id:
         return None
-    account = MyPlexAccount(token=user_plex_token, timeout=10)
+    if server_id != config.server_machine_id:
+        raise Unauthorized("Sign in to Plex again for the configured server")
+    server = PlexServer(config.server_url, user_plex_token, timeout=10)
+    if server.machineIdentifier != config.server_machine_id:
+        raise Unauthorized("Plex server identity does not match")
+    return server
+
+
+def get_server_access_token(account_token: str, server_id: str) -> str:
+    account = MyPlexAccount(token=account_token, timeout=10)
     for resource in account.resources():
-        if resource.provides == "server" and resource.clientIdentifier == config.server_machine_id:
+        if resource.provides == "server" and resource.clientIdentifier == server_id:
             if not resource.accessToken:
                 break
-            server = PlexServer(config.server_url, resource.accessToken, timeout=10)
-            if server.machineIdentifier != config.server_machine_id:
-                raise Unauthorized("Plex server identity does not match")
-            return server
+            return resource.accessToken
     raise Unauthorized("Plex server access is no longer available")
 
 

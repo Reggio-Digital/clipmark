@@ -4,7 +4,7 @@ from fastapi import Cookie, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.services.auth import get_user_by_session_token
-from app.services.plex import get_user_plex_server
+from app.services.library_cache import library_cache
 
 
 async def get_current_user(
@@ -23,7 +23,7 @@ async def get_current_user(
 async def get_current_plex_server(user=Depends(get_current_user)):
     if not user.plex_token:
         raise HTTPException(status_code=403, detail="Sign in to Plex again to access libraries")
-    server = await asyncio.to_thread(get_user_plex_server, user.plex_token)
+    server = await library_cache.get_server(user.plex_token, user.plex_server_id)
     if not server:
         raise HTTPException(status_code=503, detail="Plex server not configured")
     return server

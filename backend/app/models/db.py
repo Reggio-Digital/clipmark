@@ -14,6 +14,7 @@ class User(Base):
     plex_email = Column(String, nullable=True)
     plex_thumb = Column(String, nullable=True)
     plex_token = Column(String, nullable=True)
+    plex_server_id = Column(String, nullable=True)
     role = Column(String, nullable=False, default="user")  # "admin" or "user"
     giphy_api_key = Column(String, nullable=True)
     enabled = Column(Boolean, nullable=False, default=True)

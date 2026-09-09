@@ -8,7 +8,7 @@ from app.routers.auth import store_pending_token
 
 
 async def test_login_persists_and_refreshes_private_plex_token(client, make_user, plex_api):
-    await make_user(role="admin", plex_token="oauth-owner")
+    await make_user(role="admin", plex_token="server-owner")
     for pin in ("new-login", "repeat-login"):
         store_pending_token(pin, "oauth-guest")
         response = await client.post("/api/auth/plex/login", json={"pin_id": pin})
@@ -18,7 +18,8 @@ async def test_login_persists_and_refreshes_private_plex_token(client, make_user
         assert "plex_token" not in response.text
         async with async_session() as db:
             user = (await db.execute(select(User).where(User.plex_account_id == "2"))).scalar_one()
-            assert user.plex_token == "oauth-guest"
+            assert user.plex_token == "server-guest"
+            assert user.plex_server_id == "server-1"
             user.plex_token = "stale-token"
             await db.commit()
     # The second login must refresh the existing user rather than creating another.
@@ -35,7 +36,8 @@ async def test_setup_persists_admin_token_without_returning_it(client, plex_api,
     assert "oauth-owner" not in response.text
     async with async_session() as db:
         user = (await db.execute(select(User))).scalar_one()
-        assert user.plex_token == "oauth-owner"
+        assert user.plex_token == "server-owner"
+        assert user.plex_server_id == "server-1"
         assert user.role == "admin"
     response = await client.get("/api/libraries")
     assert response.status_code == 200

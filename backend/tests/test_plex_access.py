@@ -8,7 +8,7 @@ from app.services.cache import (
 
 
 def test_resource_token_and_configured_server_are_used(plex_api):
-    server = plex.get_user_plex_server("oauth-guest")
+    server = plex.get_user_plex_server("server-guest", "server-1")
     assert server._token == "server-guest"
     assert server._baseurl == "http://plex.test:32400"
     assert [library.id for library in plex.get_libraries(server)] == ["1", "3"]
@@ -16,7 +16,7 @@ def test_resource_token_and_configured_server_are_used(plex_api):
 
 @pytest.mark.parametrize("sort,expected", [("added", ["11", "10"]), ("alpha", ["11", "10"]), ("year", ["11", "10"])])
 def test_library_sort_and_pagination_use_visible_items(plex_api, sort, expected):
-    server = plex.get_user_plex_server("oauth-guest")
+    server = plex.get_user_plex_server("server-guest", "server-1")
     first, total = plex.get_library_items(server, "1", 1, 1, sort)
     second, _ = plex.get_library_items(server, "1", 2, 1, sort)
     empty, _ = plex.get_library_items(server, "1", 3, 1, sort)
